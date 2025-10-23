@@ -586,7 +586,7 @@ kern_shmat_locked(struct thread *td, int shmid,
 		    CHERI_PERM_CAP |
 #endif
 		    ((shmflg & SHM_RDONLY) != 0 ? CHERI_PERM_STORE : 0)));
-		td->td_retval[0] = (uintcap_t)__DECONST_CAP(void *,
+		td->td_retval[0] = (uintcap_t)__DECONST(void *,
 		    shmaddr);
 	} else
 #endif
