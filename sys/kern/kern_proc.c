@@ -1989,8 +1989,8 @@ pargs_drop(struct pargs *pa)
 }
 
 static int
-proc_read_string(struct thread *td, struct proc *p,
-    const char *sptr, char *buf, size_t len)
+proc_read_string(struct thread *td, struct proc *p, const char *sptr, char *buf,
+    size_t len)
 {
 	ssize_t n;
 
@@ -2015,8 +2015,7 @@ enum proc_vector_type {
 
 #ifdef COMPAT_FREEBSD32
 static int
-get_proc_vector32(struct thread *td, struct proc *p,
-    char ***proc_vectorp,
+get_proc_vector32(struct thread *td, struct proc *p, char ***proc_vectorp,
     size_t *vsizep, enum proc_vector_type type)
 {
 	struct freebsd32_ps_strings pss;
@@ -2168,8 +2167,7 @@ done:
 #endif
 
 static int
-get_proc_vector(struct thread *td, struct proc *p,
-    char ***proc_vectorp,
+get_proc_vector(struct thread *td, struct proc *p, char ***proc_vectorp,
     size_t *vsizep, enum proc_vector_type type)
 {
 	struct ps_strings pss;
@@ -2210,8 +2208,8 @@ get_proc_vector(struct thread *td, struct proc *p,
 		 * The aux array is just above env array on the stack. Check
 		 * that the address is naturally aligned.
 		 */
-		vptr = (vm_offset_t)pss.ps_envstr +
-		    (pss.ps_nenvstr + 1) * sizeof(char *);
+		vptr = (vm_offset_t)pss.ps_envstr + (pss.ps_nenvstr + 1)
+		    * sizeof(char *);
 #if __ELF_WORD_SIZE == 64
 		if (vptr % sizeof(uint64_t) != 0)
 #else
@@ -2795,8 +2793,7 @@ proc_get_binpath(struct proc *p, char *binname, char **retbuf,
 			 * might have been renamed or replaced, in
 			 * which case we should not report old name.
 			 */
-			NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE,
-			    *retbuf);
+			NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE, *retbuf);
 			error = namei(&nd);
 			if (error == 0) {
 				if (nd.ni_vp == vp)

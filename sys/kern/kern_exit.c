@@ -769,8 +769,7 @@ sys_abort2(struct thread *td, struct abort2_args *uap)
  *  args - pointer to an array of pointers in kernel format
  */
 int
-kern_abort2(struct thread *td, const char *why, int nargs,
-    void **uargs)
+kern_abort2(struct thread *td, const char *why, int nargs, void **uargs)
 {
 	struct proc *p = td->td_proc;
 	struct sbuf *sb;
@@ -790,6 +789,7 @@ kern_abort2(struct thread *td, const char *why, int nargs,
 	 * abort2() was called improperly
 	 */
 	sig = SIGKILL;
+	/* Prevent from DoSes from user-space. */
 	if (nargs == -1)
 		goto out;
 	KASSERT(nargs >= 0 && nargs <= 16, ("called with too many args (%d)",
@@ -808,8 +808,7 @@ kern_abort2(struct thread *td, const char *why, int nargs,
 	if (nargs > 0) {
 		sbuf_putc(sb, '(');
 		for (i = 0;i < nargs; i++)
-			sbuf_printf(sb, "%s%p", i == 0 ? "" : ", ",
-			    (void *)uargs[i]);
+			sbuf_printf(sb, "%s%p", i == 0 ? "" : ", ", uargs[i]);
 		sbuf_putc(sb, ')');
 	}
 	/*
