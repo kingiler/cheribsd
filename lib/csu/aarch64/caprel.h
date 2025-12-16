@@ -35,9 +35,9 @@
  * 8-bit permission field.
  */
 static __always_inline uintcap_t
-init_cap_from_fragment(const Elf_Addr *fragment, void * __capability data_cap,
-    const void * __capability text_rodata_cap, Elf_Addr base_addr,
-    Elf_Size addend, bool use_code_bounds)
+init_cap_from_fragment(const Elf_Addr *fragment, void *data_cap,
+    const void *text_rodata_cap, Elf_Addr base_addr, Elf_Size addend,
+    bool use_code_bounds)
 {
 	uintcap_t cap;
 	Elf_Addr address, len;
@@ -71,9 +71,8 @@ init_cap_from_fragment(const Elf_Addr *fragment, void * __capability data_cap,
 }
 
 static __always_inline void
-elf_reloc(const Elf_Rela *rela, void * __capability data_cap,
-    const void * __capability code_cap, Elf_Addr relocbase,
-    bool use_code_bounds)
+elf_reloc(const Elf_Rela *rela, void *data_cap,
+    const void * code_cap, Elf_Addr relocbase, bool use_code_bounds)
 {
 	Elf_Addr addr;
 	Elf_Addr *where;
