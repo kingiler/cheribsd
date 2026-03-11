@@ -316,7 +316,7 @@ static size_t page_size;
 /* Flags are constant after initialization. */
 static void *entire_shadow;
 static bool quarantining = true;
-static bool mteing = true;
+static bool mteing = false;
 static bool revoke_every_free = false;
 static bool revoke_async = false;
 static bool bound_pointers = false;
@@ -1546,36 +1546,49 @@ mrs_malloc(size_t size)
 	 * for size=0 we might want to pass those calls through, but none
 	 * of the currently supported allocators do.
 	 */
-	if (size < CAPREVOKE_BITMAP_ALIGNMENT)
+	int tloc =0;
+	int padded_size = 0;
+	bool padded = true;
+	if (size < CAPREVOKE_BITMAP_ALIGNMENT){
 		allocated_region = mrs_real_malloc(CAPREVOKE_BITMAP_ALIGNMENT);
-	else
-		allocated_region = mrs_real_malloc(size);
+		padded_size = 16;
+	}
+	else{
+		
+		if(size >= 16 && size < 32) padded_size = 32;
+		else if(size >= 32 && size < 48 ) padded_size = 48;
+		else if(size >= 48 && size < 64 ) padded_size = 64;
+		else if(size >= 64 && size < 80 ) padded_size = 80;
+		else if(size >= 80 && size < 96 ) padded_size = 96;
+		else if(size >= 96 && size < 112 ) padded_size = 112;
+		else if(size >= 112 && size < 128 ) padded_size = 128;
+		else {
+			padded_size = size;
+			padded = false;
+		}
+		allocated_region = mrs_real_malloc(padded_size);
+	}
 	if (allocated_region == NULL) {
 		MRS_UTRACE(UTRACE_MRS_MALLOC, NULL, size, 0,
 		    allocated_region);
 		return (allocated_region);
 	}
-	if(mteing){
+	if(mteing && padded){
 
-		int tloc =0;
-		int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		mem_mte = *((volatile long long*) allocated_region + tloc);
+		tloc = padded_size/16;
+		char mem_mte = 0;
+		mem_mte = *((volatile char*) (allocated_region + padded_size -1  ));
+		//mem_mte =  (mem_mte & 0xFF000000)/;
 		
 		if(tloc != 0){
 			if(mem_mte == 0){
-
-				*((volatile long long*) allocated_region + tloc)  = 0x1; 
+				*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
 				csetmte(allocated_region, 0x1);
 				csettloc(allocated_region, tloc);
 
 			}else if (mem_mte == 254){
 				csetmte(allocated_region, 0x1);
-				*((volatile long long*) allocated_region + tloc)  = 0x1; 
+				*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
 				csettloc(allocated_region, tloc);
 			}else{
 				csetmte(allocated_region, mem_mte);
@@ -1849,7 +1862,7 @@ mrs_free(void *ptr)
 		return (REAL(free)(ptr));
 
 	if(cgetmte(ptr) !=0){
-		*((volatile long long*) ptr + cgettloc(ptr))  = cgetmte(ptr) +1; 
+		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = cgetmte(ptr) +1; 
 		REAL(free)(ptr);
 		return;
 	}
