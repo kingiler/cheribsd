@@ -316,7 +316,7 @@ static size_t page_size;
 /* Flags are constant after initialization. */
 static void *entire_shadow;
 static bool quarantining = true;
-static bool mteing = false;
+static bool mteing = true;
 static bool revoke_every_free = false;
 static bool revoke_async = false;
 static bool bound_pointers = false;
@@ -1586,10 +1586,6 @@ mrs_malloc(size_t size)
 				csetmte(allocated_region, 0x1);
 				csettloc(allocated_region, tloc);
 
-			}else if (mem_mte == 254){
-				csetmte(allocated_region, 0x1);
-				*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
-				csettloc(allocated_region, tloc);
 			}else{
 				csetmte(allocated_region, mem_mte);
 				csettloc(allocated_region, tloc);
@@ -1861,11 +1857,13 @@ mrs_free(void *ptr)
 	if (!quarantining)
 		return (REAL(free)(ptr));
 
-	if(cgetmte(ptr) !=0){
+	if(cgetmte(ptr) !=0 && cgetmte(ptr) != 255){
 		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = cgetmte(ptr) +1; 
 		REAL(free)(ptr);
 		return;
 	}
+	if(cgetmte(ptr) == 255)
+		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = 0; 
 
 	/*mrs_debug_printf("mrs_free: called address %p\n", ptr);*/
 
