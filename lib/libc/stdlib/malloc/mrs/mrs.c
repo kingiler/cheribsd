@@ -1547,7 +1547,7 @@ mrs_malloc(size_t size)
 	 * of the currently supported allocators do.
 	 */
 	int tloc =0;
-	int padded_size = 0;
+	int padded_size = size;
 	bool padded = true;
 	if (size < CAPREVOKE_BITMAP_ALIGNMENT){
 		allocated_region = mrs_real_malloc(CAPREVOKE_BITMAP_ALIGNMENT);
@@ -1555,16 +1555,19 @@ mrs_malloc(size_t size)
 	}
 	else{
 		
-		if(size >= 16 && size < 32) padded_size = 32;
-		else if(size >= 32 && size < 48 ) padded_size = 48;
-		else if(size >= 48 && size < 64 ) padded_size = 64;
-		else if(size >= 64 && size < 80 ) padded_size = 80;
-		else if(size >= 80 && size < 96 ) padded_size = 96;
-		else if(size >= 96 && size < 112 ) padded_size = 112;
-		else if(size >= 112 && size < 128 ) padded_size = 128;
-		else {
-			padded_size = size;
-			padded = false;
+		if(mteing){
+			if(size >= 16 && size < 32) padded_size = 32;
+			else if(size >= 32 && size < 48 ) padded_size = 48;
+			else if(size >= 48 && size < 64 ) padded_size = 64;
+			//else if(size >= 64 && size < 80 ) padded_size = 80;
+			//else if(size >= 80 && size < 96 ) padded_size = 96;
+			//else if(size >= 96 && size < 112 ) padded_size = 112;
+			//else if(size >= 112 && size < 128 ) padded_size = 128;
+			//if(size<64) padded_size = (size/16+1)*16;
+
+			else {
+				padded = false;
+			}
 		}
 		allocated_region = mrs_real_malloc(padded_size);
 	}
@@ -1582,12 +1585,12 @@ mrs_malloc(size_t size)
 		
 		if(tloc != 0){
 			if(mem_mte == 0){
-				*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
+				//*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
 				csetmte(allocated_region, 0x1);
 				csettloc(allocated_region, tloc);
 
 			}else{
-				csetmte(allocated_region, mem_mte);
+				csetmte(allocated_region, mem_mte+1);
 				csettloc(allocated_region, tloc);
 			}
 		}else {
@@ -1857,12 +1860,12 @@ mrs_free(void *ptr)
 	if (!quarantining)
 		return (REAL(free)(ptr));
 
-	if(cgetmte(ptr) !=0 && cgetmte(ptr) != 255){
-		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = cgetmte(ptr) +1; 
+	if(cgetmte(ptr) !=0 && cgetmte(ptr) != 254){
+		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = cgetmte(ptr); 
 		REAL(free)(ptr);
 		return;
 	}
-	if(cgetmte(ptr) == 255)
+	if(cgetmte(ptr) == 254)
 		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = 0; 
 
 	/*mrs_debug_printf("mrs_free: called address %p\n", ptr);*/
