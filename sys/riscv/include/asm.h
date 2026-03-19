@@ -56,17 +56,10 @@
 	.weak alias;						\
 	.set alias,sym
 
-#ifdef __CHERI_PURE_CAPABILITY__
 #define	SET_FAULT_HANDLER(handler, tmp)					\
-	clc	tmp, PC_CURTHREAD(ctp);					\
-	clc	tmp, TD_PCB(tmp);		/* Load the pcb */	\
-	csc	handler, PCB_ONFAULT(tmp)	/* Set the handler */
-#else
-#define	SET_FAULT_HANDLER(handler, tmp)					\
-	ld	tmp, PC_CURTHREAD(tp);					\
-	ld	tmp, TD_PCB(tmp);		/* Load the pcb */	\
-	sd	handler, PCB_ONFAULT(tmp)	/* Set the handler */
-#endif
+	L_PTR	tmp, PC_CURTHREAD(PTR(tp));				\
+	L_PTR	tmp, TD_PCB(tmp);		/* Load the pcb */	\
+	S_PTR	handler, PCB_ONFAULT(tmp)	/* Set the handler */
 
 #define	ENTER_USER_ACCESS(tmp)						\
 	li	tmp, SSTATUS_SUM;					\
@@ -81,17 +74,53 @@
 	li	a6, func;						\
 	ecall
 
-#ifdef __CHERI_PURE_CAPABILITY__
-#define	CAPABILITY_REG(reg)	c##reg
-#define	MOVE_REG(dst, src)	cmove CAPABILITY_REG(dst), CAPABILITY_REG(src)
-#define	_CALL	ccall
-#define	_TAIL	ctail
-#define	RETURN	cret
+/*
+ * Instruction and register aliases for assembly that
+ * operates on pointers.
+ */
+
+#define	INT_WIDTH	8
+
+#if __has_feature(capabilities)
+#define	CAP(x)		c ## x
+#define	CAPN(n)		c ## n
+#define	CAP_WIDTH	16
+
+#define	L_CAP		PTR(lc)
+#define	S_CAP		PTR(sc)
 #else
-#define	MOVE_REG(dst, src)	mv dst, src
-#define	_CALL	call
-#define	_TAIL	tail
-#define	RETURN	ret
+#define	CAP(x)		x
+#define	CAPN(n)		x ## n
+#define	CAP_WIDTH	INT_WIDTH
+
+#define	L_CAP		ld
+#define	S_CAP		sd
+#endif
+
+#ifdef __CHERI__
+#define	PTR(x)		CAP(x)
+#define	PTRN(n)		CAPN(n)
+#define	PTR_NULL	PTR(null)
+#define	PTR_WIDTH	CAP_WIDTH
+
+#define	MOVE_REG(dst, src)	cmove CAP(dst), CAP(src)
+#define	MV_PTR		cmove
+#define	L_PTR		clc
+#define	S_PTR		csc
+#define	LLA_PTR		llc
+#define	LA_PTR		lgc
+#else
+#define	PTR(x)		x
+#define	PTRN(n)		x ## n
+#define	PTR_NULL	x0
+#define	PTR_WIDTH	INT_WIDTH
+
+#define	MOVE_REG(dst, src)      mv dst, src
+#define	MV_PTR		mv
+#define	L_PTR		ld
+#define	S_PTR		sd
+#define	LLA_PTR		lla
+#define	LA_PTR		la
 #endif
 
 #endif /* _MACHINE_ASM_H_ */
