@@ -43,6 +43,7 @@
  * Hybrid kernels use .cap loads and stores whereas purecap kernels use
  * capmode loads and stores.
  */
+#if __has_feature(capabilities)
 #ifdef __CHERI_PURE_CAPABILITY__
 #define	CLB		clb
 #define	CSB		csb
@@ -58,20 +59,22 @@
 #define	CLC		lc.cap
 #define	CSC		sc.cap
 #endif
+#else
+#define	CLB		lb
+#define	CSB		sb
+#define	CLD		ld
+#define	CSD		sd
+#endif
 
 /*
  * Fault handler for the copy{in,out} functions below.
  */
 ENTRY(copyio_fault)
-#ifdef __CHERI_PURE_CAPABILITY__
-	SET_FAULT_HANDLER(cnull, ca1)
-#else
-	SET_FAULT_HANDLER(x0, a1) /* Clear the handler */
-#endif
+	SET_FAULT_HANDLER(PTR_NULL, PTR(a1)) /* Clear the handler */
 	EXIT_USER_ACCESS(a1)
 copyio_fault_nopcb:
 	li	a0, EFAULT
-	RETURN
+	ret
 END(copyio_fault)
 
 /*
@@ -82,13 +85,8 @@ END(copyio_fault)
  * a2 - Size of copy
  */
 	.macro copycommon
-#ifdef __CHERI_PURE_CAPABILITY__
-	clgc	ca6, copyio_fault	/* Get the handler address */
-	SET_FAULT_HANDLER(ca6, ca7)	/* Set the handler */
-#else
-	la	a6, copyio_fault	/* Get the handler address */
-	SET_FAULT_HANDLER(a6, a7)	/* Set the handler */
-#endif
+	LA_PTR	PTR(a6), copyio_fault	/* Get the handler address */
+	SET_FAULT_HANDLER(PTR(a6), PTR(a7))	/* Set the handler */
 	ENTER_USER_ACCESS(a7)
 
 	li	t2, XLEN_BYTES
@@ -105,17 +103,10 @@ END(copyio_fault)
 
 	/* Byte copy until the first word-aligned address */
 1:
-#if __has_feature(capabilities)
-	CLB	a4, 0(ca0)		/* Load byte from src */
-	cincoffset	ca0, ca0, 1
-	CSB	a4, 0(ca1)		/* Store byte in dest */
-	cincoffset	ca1, ca1, 1
-#else
-	lb	a4, 0(a0)		/* Load byte from src */
-	addi	a0, a0, 1
-	sb	a4, 0(a1)		/* Store byte in dest */
-	addi	a1, a1, 1
-#endif
+	CLB	a4, 0(CAP(a0))		/* Load byte from src */
+	addi	CAP(a0), CAP(a0), 1
+	CSB	a4, 0(CAP(a1))		/* Store byte in dest */
+	addi	CAP(a1), CAP(a1), 1
 	addi	a2, a2, -1		/* len-- */
 	andi	t0, a0, (XLEN_BYTES-1)
 	bnez	t0, 1b
@@ -123,17 +114,10 @@ END(copyio_fault)
 
 	/* Copy words */
 2:
-#if __has_feature(capabilities)
-	CLD	a4, 0(ca0)		/* Load word from src */
-	cincoffset	ca0, ca0, XLEN_BYTES
-	CSD	a4, 0(ca1)		/* Store word in dest */
-	cincoffset	ca1, ca1, XLEN_BYTES
-#else
-	ld	a4, 0(a0)		/* Load word from src */
-	addi	a0, a0, XLEN_BYTES
-	sd	a4, 0(a1)		/* Store word in dest */
-	addi	a1, a1, XLEN_BYTES
-#endif
+	CLD	a4, 0(CAP(a0))		/* Load word from src */
+	addi	CAP(a0), CAP(a0), XLEN_BYTES
+	CSD	a4, 0(CAP(a1))		/* Store word in dest */
+	addi	CAP(a1), CAP(a1), XLEN_BYTES
 	addi	a2, a2, -XLEN_BYTES	/* len -= XLEN_BYTES */
 3:	bgeu	a2, t2, 2b		/* Again if len >= XLEN_BYTES */
 
@@ -142,26 +126,16 @@ END(copyio_fault)
 
 	/* Copy any remaining bytes */
 4:
-#if __has_feature(capabilities)
-	CLB	a4, 0(ca0)		/* Load byte from src */
-	cincoffset	ca0, ca0, 1
-	CSB	a4, 0(ca1)		/* Store byte in dest */
-	cincoffset	ca1, ca1, 1
-#else
-	lb	a4, 0(a0)		/* Load byte from src */
-	addi	a0, a0, 1
-	sb	a4, 0(a1)		/* Store byte in dest */
-	addi	a1, a1, 1
-#endif
+	CLB	a4, 0(CAP(a0))		/* Load byte from src */
+	addi	CAP(a0), CAP(a0), 1
+	CSB	a4, 0(CAP(a1))		/* Store byte in dest */
+	addi	CAP(a1), CAP(a1), 1
 	addi	a2, a2, -1		/* len-- */
 	bnez	a2, 4b
 
-5:	EXIT_USER_ACCESS(a7)
-#ifdef __CHERI_PURE_CAPABILITY__
-	SET_FAULT_HANDLER(cnull, ca7)	/* Clear the handler */
-#else
-	SET_FAULT_HANDLER(x0, a7)	/* Clear the handler */
-#endif
+5:
+	EXIT_USER_ACCESS(a7)
+	SET_FAULT_HANDLER(PTR_NULL, PTR(a7))	/* Clear the handler */
 	.endm
 
 /*
@@ -176,16 +150,16 @@ ENTRY(copyout)
 	bgeu	a3, a4, copyio_fault_nopcb
 
 #if __has_feature(capabilities) && !defined(__CHERI_PURE_CAPABILITY__)
-	cspecialr	ca3, ddc
-	csetoffset	ca3, ca3, a0
-	csetbounds	ca0, ca3, a2
+	cspecialr	CAP(a3), ddc
+	add		CAP(a3), CAP(a3), a0
+	csetbounds	CAP(a0), CAP(a3), a2
 #endif
 
 	copycommon
 
 copyout_end:
 	li	a0, 0		/* return 0 */
-	RETURN
+	ret
 END(copyout)
 
 /*
@@ -200,16 +174,16 @@ ENTRY(copyin)
 	bgeu	a3, a4, copyio_fault_nopcb
 
 #if __has_feature(capabilities) && !defined(__CHERI_PURE_CAPABILITY__)
-	cspecialr	ca3, ddc
-	csetoffset	ca3, ca3, a1
-	csetbounds	ca1, ca3, a2
+	cspecialr	CAP(a3), ddc
+	add		CAP(a3), CAP(a3), a1
+	csetbounds	CAP(a1), CAP(a3), a2
 #endif
 
 	copycommon
 
 copyin_end:
 	li	a0, 0		/* return 0 */
-	RETURN
+	ret
 END(copyin)
 
 /*
@@ -222,59 +196,40 @@ ENTRY(copyinstr)
 	mv	a5, x0		/* count = 0 */
 	beqz	a2, 3f		/* If len == 0 then skip loop */
 
-#ifdef __CHERI_PURE_CAPABILITY__
-	clgc	ca6, copyio_fault /* Get the handler address */
-	SET_FAULT_HANDLER(ca6, ca7) /* Set the handler */
-#else
-	la	a6, copyio_fault /* Get the handler address */
-	SET_FAULT_HANDLER(a6, a7) /* Set the handler */
-#endif
+	LA_PTR	PTR(a6), copyio_fault /* Get the handler address */
+	SET_FAULT_HANDLER(PTR(a6), PTR(a7)) /* Set the handler */
 	ENTER_USER_ACCESS(a7)
 
 #if __has_feature(capabilities) && !defined(__CHERI_PURE_CAPABILITY__)
-	cspecialr	ca4, ddc
-	csetoffset	ca4, ca4, a1
-	csetbounds	ca1, ca4, a2
+	cspecialr	CAP(a4), ddc
+	add		CAP(a4), CAP(a4), a1
+	csetbounds	CAP(a1), CAP(a4), a2
 #endif
 
 	li	a7, VM_MAXUSER_ADDRESS
 1:	bgeu	a0, a7, copyio_fault
-#if __has_feature(capabilities)
-	CLB	a4, 0(ca0)	/* Load from uaddr */
-	cincoffset	ca0, ca0, 1
-	CSB	a4, 0(ca1)	/* Store in kaddr */
-	cincoffset	ca1, ca1, 1
-#else
-	lb	a4, 0(a0)	/* Load from uaddr */
-	addi	a0, a0, 1
-	sb	a4, 0(a1)	/* Store in kaddr */
-	addi	a1, a1, 1
-#endif
+	CLB	a4, 0(CAP(a0))	/* Load from uaddr */
+	addi	CAP(a0), CAP(a0), 1
+	CSB	a4, 0(CAP(a1))	/* Store in kaddr */
+	addi	CAP(a1), CAP(a1), 1
 	beqz	a4, 2f
 	addi	a2, a2, -1	/* len-- */
 	addi	a5, a5, 1	/* count++ */
 	bnez	a2, 1b
 
-2:	EXIT_USER_ACCESS(a7)
-#ifdef __CHERI_PURE_CAPABILITY__
-	SET_FAULT_HANDLER(cnull, ca7) /* Clear the handler */
-#else
-	SET_FAULT_HANDLER(x0, a7) /* Clear the handler */
-#endif
+2:
+	EXIT_USER_ACCESS(a7)
+	SET_FAULT_HANDLER(PTR_NULL, PTR(a7)) /* Clear the handler */
 
 3:	beqz	a3, 4f		/* Check if done != NULL */
 	addi	a5, a5, 1	/* count++ */
-#ifdef __CHERI_PURE_CAPABILITY__
-	csd	a5, 0(ca3)	/* done = count */
-#else
-	sd	a5, 0(a3)	/* done = count */
-#endif
+	sd	a5, 0(PTR(a3))	/* done = count */
 
 4:	mv	a0, x0		/* return 0 */
 	beqz	a4, 5f
 	li	a0, ENAMETOOLONG
 5:
-	RETURN
+	ret
 END(copyinstr)
 
 #if __has_feature(capabilities)
@@ -286,13 +241,8 @@ END(copyinstr)
  * a2 - Size of copy
  */
 	.macro copycapcommon
-#ifdef __CHERI_PURE_CAPABILITY__
-	clgc	ca6, copyio_fault	/* Get the handler address */
-	SET_FAULT_HANDLER(ca6, ca7)	/* Set the handler */
-#else
-	la	a6, copyio_fault	/* Get the handler address */
-	SET_FAULT_HANDLER(a6, a7)	/* Set the handler */
-#endif
+	LA_PTR	PTR(a6), copyio_fault	/* Get the handler address */
+	SET_FAULT_HANDLER(PTR(a6), PTR(a7))	/* Set the handler */
 	ENTER_USER_ACCESS(a7)
 
 	li	t2, CLEN_BYTES
@@ -309,10 +259,10 @@ END(copyinstr)
 
 	/* Byte copy until the first capability-aligned address */
 1:
-	CLB	a4, 0(ca0)		/* Load byte from src */
-	cincoffset	ca0, ca0, 1
-	CSB	a4, 0(ca1)		/* Store byte in dest */
-	cincoffset	ca1, ca1, 1
+	CLB	a4, 0(CAP(a0))		/* Load byte from src */
+	addi	CAP(a0), CAP(a0), 1
+	CSB	a4, 0(CAP(a1))		/* Store byte in dest */
+	addi	CAP(a1), CAP(a1), 1
 	addi	a2, a2, -1		/* len-- */
 	andi	t0, a0, (CLEN_BYTES-1)
 	bnez	t0, 1b
@@ -320,10 +270,10 @@ END(copyinstr)
 
 	/* Copy capabilities */
 2:
-	CLC	ca4, 0(ca0)		/* Load capability from src */
-	cincoffset	ca0, ca0, CLEN_BYTES
-	CSC	ca4, 0(ca1)		/* Store capability in dest */
-	cincoffset	ca1, ca1, CLEN_BYTES
+	CLC	CAP(a4), 0(CAP(a0))	/* Load capability from src */
+	addi	CAP(a0), CAP(a0), CLEN_BYTES
+	CSC	CAP(a4), 0(CAP(a1))	/* Store capability in dest */
+	addi	CAP(a1), CAP(a1), CLEN_BYTES
 	addi	a2, a2, -CLEN_BYTES	/* len -= CLEN_BYTES */
 3:	bgeu	a2, t2, 2b		/* Again if len >= CLEN_BYTES */
 
@@ -332,19 +282,16 @@ END(copyinstr)
 
 	/* Copy any remaining bytes */
 4:
-	CLB	a4, 0(ca0)		/* Load byte from src */
-	cincoffset	ca0, ca0, 1
+	CLB	a4, 0(CAP(a0))		/* Load byte from src */
+	addi	CAP(a0), CAP(a0), 1
 	CSB	a4, 0(ca1)		/* Store byte in dest */
-	cincoffset	ca1, ca1, 1
+	addi	CAP(a1), CAP(a1), 1
 	addi	a2, a2, -1		/* len-- */
 	bnez	a2, 4b
 
-5:	EXIT_USER_ACCESS(a7)
-#ifdef __CHERI_PURE_CAPABILITY__
-	SET_FAULT_HANDLER(cnull, ca7) /* Clear the handler */
-#else
-	SET_FAULT_HANDLER(x0, a7)	/* Clear the handler */
-#endif
+5:
+	EXIT_USER_ACCESS(a7)
+	SET_FAULT_HANDLER(PTR_NULL, PTR(a7)) /* Clear the handler */
 	.endm
 
 /*
@@ -359,16 +306,16 @@ ENTRY(copyoutptr)
 	bgeu	a3, a4, copyio_fault_nopcb
 
 #ifndef __CHERI_PURE_CAPABILITY__
-	cspecialr	ca3, ddc
-	csetoffset	ca3, ca3, a0
-	csetbounds	ca0, ca3, a2
+	cspecialr	CAP(a3), ddc
+	add		CAP(a3), CAP(a3), a0
+	csetbounds	CAP(a0), CAP(a3), a2
 #endif
 
 	copycapcommon
 
 copyoutptr_end:
 	li	a0, 0		/* return 0 */
-	RETURN
+	ret
 END(copyoutptr)
 
 /*
@@ -383,16 +330,16 @@ ENTRY(copyinptr)
 	bgeu	a3, a4, copyio_fault_nopcb
 
 #ifndef __CHERI_PURE_CAPABILITY__
-	cspecialr	ca3, ddc
-	csetoffset	ca3, ca3, a1
-	csetbounds	ca1, ca3, a2
+	cspecialr	CAP(a3), ddc
+	add		CAP(a3), CAP(a3), a1
+	csetbounds	CAP(a1), CAP(a3), a2
 #endif
 
 	copycapcommon
 
 copyinptr_end:
 	li	a0, 0		/* return 0 */
-	RETURN
+	ret
 END(copyinptr)
 #endif
 
