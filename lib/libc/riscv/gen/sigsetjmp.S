@@ -36,42 +36,23 @@
 #include <machine/setjmp.h>
 
 ENTRY(sigsetjmp)
-#ifdef __CHERI_PURE_CAPABILITY__
-	beqz	a1, 1f
-	ctail	_C_LABEL(setjmp)
-1:
-	ctail	_C_LABEL(_setjmp)
-#else
 	beqz	a1, 1f
 	tail	_C_LABEL(setjmp)
 1:
 	tail	_C_LABEL(_setjmp)
-#endif
 END(sigsetjmp)
 
 ENTRY(siglongjmp)
-#ifdef __CHERI_PURE_CAPABILITY__
 	/* Load the _setjmp magic */
-	cllc	ca2, .Lmagic
-	cld	a2, (ca2)
-	cld	a3, 0(ca0)
-
-	/* Check the magic */
-	beq	a2, a3, 1f
-	ctail	_C_LABEL(longjmp)
-1:
-	ctail	_C_LABEL(_longjmp)
-#else
-	/* Load the _setjmp magic */
-	ld	a2, .Lmagic
-	ld	a3, 0(a0)
+	LLA_PTR	PTR(a2), .Lmagic
+	ld	a2, (PTR(a2))
+	ld	a3, 0(PTR(a0))
 
 	/* Check the magic */
 	beq	a2, a3, 1f
 	tail	_C_LABEL(longjmp)
 1:
 	tail	_C_LABEL(_longjmp)
-#endif
 
 	.align	3
 .Lmagic:
