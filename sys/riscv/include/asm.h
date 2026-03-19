@@ -88,6 +88,19 @@
 
 #define	L_CAP		PTR(lc)
 #define	S_CAP		PTR(sc)
+#define	MODESW_CAP(tmp, tmp1)					\
+	lla		tmp1, 99f;				\
+	cspecialr	CAP(tmp), pcc;				\
+	csetaddr CAP(tmp), CAP(tmp), tmp1;			\
+	li		tmp1, 1;				\
+	csetflags	CAP(tmp), CAP(tmp), tmp1;		\
+	jr.cap		CAP(tmp);				\
+	99:
+#define	MODESW_INT(tmp)						\
+	llc		CAP(tmp), 99f;				\
+	csetflags	CAP(tmp), CAP(tmp), zero;		\
+	jr.cap		CAP(tmp);				\
+	99:
 #else
 #define	CAP(x)		x
 #define	CAPN(n)		x ## n
@@ -95,6 +108,8 @@
 
 #define	L_CAP		ld
 #define	S_CAP		sd
+#define	MODESW_CAP(tmp, tmp1)
+#define	MODESW_INT(tmp, tmp1)
 #endif
 
 #ifdef __CHERI__
