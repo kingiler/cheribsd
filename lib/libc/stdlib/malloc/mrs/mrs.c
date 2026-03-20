@@ -1588,7 +1588,14 @@ mrs_malloc(size_t size)
 				//*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
 				csetmte(allocated_region, 0x1);
 				csettloc(allocated_region, tloc);
+			}
+			else if (mem_mte >=128){
+				*((volatile char*) allocated_region + padded_size -1  )  = 0; 
+				__asm __volatile("fence.i" ::: "memory");				
+				csetmte(allocated_region, 0x1);
+				csettloc(allocated_region, tloc);
 
+			
 			}else{
 				csetmte(allocated_region, mem_mte+1);
 				csettloc(allocated_region, tloc);
@@ -1660,13 +1667,18 @@ mrs_calloc(size_t number, size_t size)
 	if(mteing){
 
 		int tloc =0;
+		bool padded = true;
 		//int mem_mte = 0;
 		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) allocated_region + tloc)  = 0x0; 
+		if(size < 16) tloc = 1;
+		else if (size >16 && size <= 24) tloc = 2;
+		else if (size > 32 && size <= 40) tloc = 3;
+		else if (size > 48 && size <= 56) tloc = 4;
+		else padded = false;
+		if(padded ){
+			*((volatile char*) allocated_region + tloc * 16 -1)  = 0x0; 
+			__asm __volatile("fence.i" ::: "memory");
+		}
 		csetmte(allocated_region, 0);
 	}
 
@@ -1717,12 +1729,16 @@ mrs_posix_memalign(void **ptr, size_t alignment, size_t size)
 
 		int tloc =0;
 		//int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) *ptr + tloc)  = 0x0; 
+		bool padded = true;
+		if(size < 16) tloc = 1;
+		else if (size >= 16 && size <= 24) tloc = 2;
+		else if (size > 32 && size <= 40) tloc = 3;
+		else if (size > 48 && size <= 56) tloc = 4;
+		else padded = false;
+		if(padded ){
+			*((volatile char*) *ptr + tloc * 16 -1)  = 0x0; 
+			__asm __volatile("fence.i" ::: "memory");
+		}
 		csetmte(*ptr, 0);
 	}
 #ifdef CLEAR_ON_ALLOC
@@ -1767,12 +1783,16 @@ mrs_aligned_alloc(size_t alignment, size_t size)
 
 		int tloc =0;
 		//int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) allocated_region + tloc)  = 0x0; 
+		bool padded = true;
+		if(size < 16) tloc = 1;
+		else if (size >=16 && size <= 24) tloc = 2;
+		else if (size > 32 && size <= 40) tloc = 3;
+		else if (size > 48 && size <= 56) tloc = 4;
+		else padded = false;
+		if(padded ){
+			*((volatile char*) allocated_region + tloc * 16 -1)  = 0x0; 
+			__asm __volatile("fence.i" ::: "memory");
+		}
 		csetmte(allocated_region, 0);
 	}
 #ifdef CLEAR_ON_ALLOC
@@ -1830,12 +1850,16 @@ mrs_realloc(void *ptr, size_t size)
 
 		int tloc =0;
 		//int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) new_alloc + tloc)  = 0x0; 
+		bool padded = true;
+		if(size < 16) tloc = 1;
+		else if (size >= 16 && size <= 24) tloc = 2;
+		else if (size > 32 && size <= 40) tloc = 3;
+		else if (size > 48 && size <= 56) tloc = 4;
+		else padded = false;
+		if(padded ){
+			*((volatile char*) new_alloc + tloc * 16 -1)  = 0x0; 
+			__asm __volatile("fence.i" ::: "memory");
+		}
 		csetmte(new_alloc,0);
 	}
 	/*
@@ -1860,13 +1884,16 @@ mrs_free(void *ptr)
 	if (!quarantining)
 		return (REAL(free)(ptr));
 
-	if(cgetmte(ptr) !=0 && cgetmte(ptr) != 254){
+	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 128){
 		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = cgetmte(ptr); 
+		__asm __volatile("fence.i" ::: "memory");
 		REAL(free)(ptr);
 		return;
 	}
-	if(cgetmte(ptr) == 254)
+	if(cgetmte(ptr) >= 128){
 		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = 0; 
+		__asm __volatile("fence.i" ::: "memory");
+	}
 
 	/*mrs_debug_printf("mrs_free: called address %p\n", ptr);*/
 
