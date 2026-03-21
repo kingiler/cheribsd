@@ -106,6 +106,7 @@
 #define	QUARANTINE_NUMERATOR	1
 #endif
 
+//#define MTE_FENCE 1
 #define	MALLOCX_LG_ALIGN_BITS	6
 #define	MALLOCX_LG_ALIGN_MASK	((1 << MALLOCX_LG_ALIGN_BITS) - 1)
 /* Use MALLOCX_ALIGN_GET() if alignment may not be specified in flags. */
@@ -1589,14 +1590,7 @@ mrs_malloc(size_t size)
 				csetmte(allocated_region, 0x1);
 				csettloc(allocated_region, tloc);
 			}
-			else if (mem_mte >=128){
-				*((volatile char*) allocated_region + padded_size -1  )  = 0; 
-				__asm __volatile("fence.i" ::: "memory");				
-				csetmte(allocated_region, 0x1);
-				csettloc(allocated_region, tloc);
-
-			
-			}else{
+			else{
 				csetmte(allocated_region, mem_mte+1);
 				csettloc(allocated_region, tloc);
 			}
@@ -1677,7 +1671,9 @@ mrs_calloc(size_t number, size_t size)
 		else padded = false;
 		if(padded ){
 			*((volatile char*) allocated_region + tloc * 16 -1)  = 0x0; 
+#ifdef MTE_FENCE
 			__asm __volatile("fence.i" ::: "memory");
+#endif
 		}
 		csetmte(allocated_region, 0);
 	}
@@ -1737,7 +1733,9 @@ mrs_posix_memalign(void **ptr, size_t alignment, size_t size)
 		else padded = false;
 		if(padded ){
 			*((volatile char*) *ptr + tloc * 16 -1)  = 0x0; 
+#ifdef MTE_FENCE
 			__asm __volatile("fence.i" ::: "memory");
+#endif
 		}
 		csetmte(*ptr, 0);
 	}
@@ -1791,7 +1789,9 @@ mrs_aligned_alloc(size_t alignment, size_t size)
 		else padded = false;
 		if(padded ){
 			*((volatile char*) allocated_region + tloc * 16 -1)  = 0x0; 
+#ifdef MTE_FENCE
 			__asm __volatile("fence.i" ::: "memory");
+#endif
 		}
 		csetmte(allocated_region, 0);
 	}
@@ -1841,6 +1841,15 @@ mrs_realloc(void *ptr, size_t size)
 	 * power-of-two buckets by 1K) and we especially want to avoid
 	 * copying such cases.
 	 */
+	if(ptr!=NULL){
+		if(cgetmte(ptr) !=0){
+			*((volatile char*) ptr + cgettloc(ptr) * 16 -1)  = 0x0; 
+#ifdef MTE_FENCE
+			__asm __volatile("fence.i" ::: "memory");
+#endif
+			csetmte(ptr, 0);
+		}
+	}
 	if (ptr != NULL && cheri_gettag(ptr) && cheri_getoffset(ptr) == 0 &&
 	    size <= old_size && old_size - size <= (old_size >> 1))
 		return (ptr);
@@ -1848,6 +1857,7 @@ mrs_realloc(void *ptr, size_t size)
 	void *new_alloc = mrs_malloc(size);
 	if(mteing){
 
+		
 		int tloc =0;
 		//int mem_mte = 0;
 		bool padded = true;
@@ -1858,7 +1868,9 @@ mrs_realloc(void *ptr, size_t size)
 		else padded = false;
 		if(padded ){
 			*((volatile char*) new_alloc + tloc * 16 -1)  = 0x0; 
+#ifdef MTE_FENCE
 			__asm __volatile("fence.i" ::: "memory");
+#endif
 		}
 		csetmte(new_alloc,0);
 	}
@@ -1884,15 +1896,19 @@ mrs_free(void *ptr)
 	if (!quarantining)
 		return (REAL(free)(ptr));
 
-	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 128){
+	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 255){
 		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = cgetmte(ptr); 
+#ifdef MTE_FENCE
 		__asm __volatile("fence.i" ::: "memory");
+#endif
 		REAL(free)(ptr);
 		return;
 	}
-	if(cgetmte(ptr) >= 128){
+	if(cgetmte(ptr) == 255){
 		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = 0; 
+#ifdef MTE_FENCE
 		__asm __volatile("fence.i" ::: "memory");
+#endif
 	}
 
 	/*mrs_debug_printf("mrs_free: called address %p\n", ptr);*/
