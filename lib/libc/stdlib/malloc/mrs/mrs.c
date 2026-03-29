@@ -106,8 +106,6 @@
 #define	QUARANTINE_NUMERATOR	1
 #endif
 
-//#define MTE_FENCE 1
-#define MTE_ENABLE 1
 #define	MALLOCX_LG_ALIGN_BITS	6
 #define	MALLOCX_LG_ALIGN_MASK	((1 << MALLOCX_LG_ALIGN_BITS) - 1)
 /* Use MALLOCX_ALIGN_GET() if alignment may not be specified in flags. */
@@ -1549,21 +1547,19 @@ mrs_malloc(size_t size)
 	 * of the currently supported allocators do.
 	 */
 	int tloc =0;
-	int padded_size = size;
+	int padded_size = 0;
 	bool padded = true;
 	if (size < CAPREVOKE_BITMAP_ALIGNMENT){
 		allocated_region = mrs_real_malloc(CAPREVOKE_BITMAP_ALIGNMENT);
 		padded_size = 16;
 	}
 	else{
-#ifdef MTE_ENABLE 	
-			if(size < 128){
-				padded_size = (size/16+1)*16;
-			}
-			else {
-				padded = false;
-			}
-#endif 
+		
+		if(size < 64) padded_size = (size/16+1) * 16;
+		else {
+			padded_size = size;
+			padded = false;
+		}
 		allocated_region = mrs_real_malloc(padded_size);
 	}
 	if (allocated_region == NULL) {
@@ -1571,24 +1567,31 @@ mrs_malloc(size_t size)
 		    allocated_region);
 		return (allocated_region);
 	}
-#ifdef MTE_ENABLE
-	if(padded){
+	if(mteing && padded){
+
+		tloc = padded_size/16;
 		char mem_mte = 0;
 		mem_mte = *((volatile char*) (allocated_region + padded_size -1  ));
-		tloc = padded_size/16;
-				
-		if(mem_mte == 0){
-			//*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
-			csetmte(allocated_region, 0x1);
-			csettloc(allocated_region, tloc);
-		}
-		else{
-			csetmte(allocated_region, mem_mte+1);
-			csettloc(allocated_region, tloc);
-		}
+		//mem_mte =  (mem_mte & 0xFF000000)/;
 		
+		if(tloc != 0){
+			if(mem_mte == 0){
+				*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
+				csetmte(allocated_region, 0x1);
+				csettloc(allocated_region, tloc);
+
+			}else{
+				csetmte(allocated_region, mem_mte);
+				csettloc(allocated_region, tloc);
+			}
+		}else {
+			csetmte(allocated_region, 0);
+		}
+	
+	}else{
+		csetmte(allocated_region, 0);
 	}
-#endif 
+
 #ifdef CLEAR_ON_ALLOC
 	clear_region(allocated_region, cheri_getlen(allocated_region));
 #endif /* CLEAR_ON_ALLOC */
@@ -1637,7 +1640,6 @@ mrs_calloc(size_t number, size_t size)
 	 * the alignment requirement for small sizes but that seems like an
 	 * extraordinarily unlikely and highly questionable optimization.
 	 */
-	 
 	if (!__builtin_mul_overflow(number, size, &tmpsize) &&
 	    tmpsize < CAPREVOKE_BITMAP_ALIGNMENT)
 		allocated_region = mrs_real_calloc(1, CAPREVOKE_BITMAP_ALIGNMENT);
@@ -1647,6 +1649,18 @@ mrs_calloc(size_t number, size_t size)
 		MRS_UTRACE(UTRACE_MRS_CALLOC, NULL, size, number,
 		    allocated_region);
 		return (allocated_region);
+	}
+	if(mteing){
+
+		int tloc =0;
+		//int mem_mte = 0;
+		
+		if(size <= 8) tloc = 1;
+		else if (size >16 && size <= 24) tloc = 3;
+		else if (size > 32 && size <= 40) tloc = 5;
+		else if (size > 48 && size <= 56) tloc = 7;
+		*((volatile long long*) allocated_region + tloc)  = 0x0; 
+		csetmte(allocated_region, 0);
 	}
 
 	increment_allocated_size(allocated_region);
@@ -1669,6 +1683,7 @@ mrs_real_posix_memalign(void **ptr, size_t alignment, size_t size)
 	ret = REAL(posix_memalign)(ptr, alignment, size);
 	if (ret == 0)
 		*ptr = mrs_bound_pointer(*ptr, size);
+	csetmte(*ptr, 0);
 	return (ret);
 }
 
@@ -1692,7 +1707,18 @@ mrs_posix_memalign(void **ptr, size_t alignment, size_t size)
 	if (ret != 0) {
 		return (ret);
 	}
+	if(mteing){
 
+		int tloc =0;
+		//int mem_mte = 0;
+		
+		if(size <= 8) tloc = 1;
+		else if (size >16 && size <= 24) tloc = 3;
+		else if (size > 32 && size <= 40) tloc = 5;
+		else if (size > 48 && size <= 56) tloc = 7;
+		*((volatile long long*) *ptr + tloc)  = 0x0; 
+		csetmte(*ptr, 0);
+	}
 #ifdef CLEAR_ON_ALLOC
 	clear_region(*ptr, cheri_getlen(*ptr));
 #endif /* CLEAR_ON_ALLOC */
@@ -1731,7 +1757,18 @@ mrs_aligned_alloc(size_t alignment, size_t size)
 		    allocated_region);
 		return (allocated_region);
 	}
+	if(mteing){
 
+		int tloc =0;
+		//int mem_mte = 0;
+		
+		if(size <= 8) tloc = 1;
+		else if (size >16 && size <= 24) tloc = 3;
+		else if (size > 32 && size <= 40) tloc = 5;
+		else if (size > 48 && size <= 56) tloc = 7;
+		*((volatile long long*) allocated_region + tloc)  = 0x0; 
+		csetmte(allocated_region, 0);
+	}
 #ifdef CLEAR_ON_ALLOC
 	clear_region(allocated_region, cheri_getlen(allocated_region));
 #endif /* CLEAR_ON_ALLOC */
@@ -1783,6 +1820,18 @@ mrs_realloc(void *ptr, size_t size)
 		return (ptr);
 
 	void *new_alloc = mrs_malloc(size);
+	if(mteing){
+
+		int tloc =0;
+		//int mem_mte = 0;
+		
+		if(size <= 8) tloc = 1;
+		else if (size >16 && size <= 24) tloc = 3;
+		else if (size > 32 && size <= 40) tloc = 5;
+		else if (size > 48 && size <= 56) tloc = 7;
+		*((volatile long long*) new_alloc + tloc)  = 0x0; 
+		csetmte(new_alloc,0);
+	}
 	/*
 	 * Per the C standard, copy and free IFF the old pointer is valid
 	 * and allocation succeeds.
@@ -1804,45 +1853,22 @@ mrs_free(void *ptr)
 
 	if (!quarantining)
 		return (REAL(free)(ptr));
-/*
-	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 255){
-		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = cgetmte(ptr); 
-														//set zero for debug
-#ifdef MTE_FENCE
-		__asm __volatile("fence.i" ::: "memory");
-#endif
-		return REAL(free)(ptr);
-		
+
+	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 254){
+		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) + cgettloc(ptr)*16 -1)) = cgetmte(ptr) +1; 
+		REAL(free)(ptr);
+		return;
 	}
-	if(cgetmte(ptr) == 255){
-		*((volatile char*) (ptr + cgettloc(ptr)*16 -1)) = 0; 
-#ifdef MTE_FENCE
-		__asm __volatile("fence.i" ::: "memory");
-#endif
-	}
-*/
+	if(cgetmte(ptr) == 254)
+		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) + cgettloc(ptr)*16 -1)) = 1; 
+
 	/*mrs_debug_printf("mrs_free: called address %p\n", ptr);*/
 
-	
+	MRS_UTRACE(UTRACE_MRS_FREE, ptr, 0, 0, 0);
 
 	if (ptr == NULL)
 		return;
-	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 255 && cheri_gettag(ptr)){
-		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) + cgettloc(ptr)*16 -1)) = cgetmte(ptr); 
-														//set zero for debug
-#ifdef MTE_FENCE
-		__asm __volatile("fence.i" ::: "memory");
-#endif
-		return REAL(free)(REAL(malloc_underlying_allocation)(ptr));
-		
-	}
-	if(cgetmte(ptr) == 255 && cheri_gettag(ptr) ){
-		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) + cgettloc(ptr)*16 -1)) = 0; 
-#ifdef MTE_FENCE
-		__asm __volatile("fence.i" ::: "memory");
-#endif
-	}
-	MRS_UTRACE(UTRACE_MRS_FREE, ptr, 0, 0, 0);
+
 	/*
 	 * If not offloading, validate the passed-in cap here and
 	 * replace it with the cap to its underlying allocation.
