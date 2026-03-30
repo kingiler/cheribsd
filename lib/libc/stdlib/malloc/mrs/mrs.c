@@ -1555,7 +1555,7 @@ mrs_malloc(size_t size)
 	}
 	else{
 		
-		if(size < 64) padded_size = (size/16+1) * 16;
+		if(size < 4096) padded_size = (size/16+1) * 16;
 		else {
 			padded_size = size;
 			padded = false;
@@ -1568,15 +1568,17 @@ mrs_malloc(size_t size)
 		return (allocated_region);
 	}
 	if(mteing && padded){
-
-		tloc = padded_size/16;
+		long cache_loc = ((long long) allocated_region) &0xFF;
+		
+		tloc = (padded_size + cache_loc)/16  ;
+		//fprintf(stderr, "allocated address %lx, %lx, %x,%x\n", (long) allocated_region, cache_loc, padded_size, tloc);
 		char mem_mte = 0;
-		mem_mte = *((volatile char*) (allocated_region + padded_size -1  ));
+		mem_mte = *((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ));
 		//mem_mte =  (mem_mte & 0xFF000000)/;
 		
 		if(tloc != 0){
 			if(mem_mte == 0){
-				*((volatile char*) allocated_region + padded_size -1  )  = 0x1; 
+				*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ))  = 0x1; 
 				csetmte(allocated_region, 0x1);
 				csettloc(allocated_region, tloc);
 
@@ -1650,19 +1652,19 @@ mrs_calloc(size_t number, size_t size)
 		    allocated_region);
 		return (allocated_region);
 	}
-	if(mteing){
-
-		int tloc =0;
-		//int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) allocated_region + tloc)  = 0x0; 
-		csetmte(allocated_region, 0);
-	}
-
+	//if(mteing){
+//
+	//	int tloc =0;
+	//	//int mem_mte = 0;
+	//	
+	//	if(size <= 8) tloc = 1;
+	//	else if (size >16 && size <= 24) tloc = 3;
+	//	else if (size > 32 && size <= 40) tloc = 5;
+	//	else if (size > 48 && size <= 56) tloc = 7;
+	//	*((volatile long long*) allocated_region + tloc)  = 0x0; 
+	//	csetmte(allocated_region, 0);
+	//}
+	csetmte(allocated_region, 0);
 	increment_allocated_size(allocated_region);
 
 	/*
@@ -1707,18 +1709,19 @@ mrs_posix_memalign(void **ptr, size_t alignment, size_t size)
 	if (ret != 0) {
 		return (ret);
 	}
-	if(mteing){
-
-		int tloc =0;
-		//int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) *ptr + tloc)  = 0x0; 
-		csetmte(*ptr, 0);
-	}
+	//if(mteing){
+//
+	//	int tloc =0;
+	//	//int mem_mte = 0;
+	//	
+	//	if(size <= 8) tloc = 1;
+	//	else if (size >16 && size <= 24) tloc = 3;
+	//	else if (size > 32 && size <= 40) tloc = 5;
+	//	else if (size > 48 && size <= 56) tloc = 7;
+	//	*((volatile long long*) *ptr + tloc)  = 0x0; 
+	//	csetmte(*ptr, 0);
+	//}
+	csetmte(*ptr, 0);
 #ifdef CLEAR_ON_ALLOC
 	clear_region(*ptr, cheri_getlen(*ptr));
 #endif /* CLEAR_ON_ALLOC */
@@ -1757,18 +1760,19 @@ mrs_aligned_alloc(size_t alignment, size_t size)
 		    allocated_region);
 		return (allocated_region);
 	}
-	if(mteing){
-
-		int tloc =0;
-		//int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) allocated_region + tloc)  = 0x0; 
-		csetmte(allocated_region, 0);
-	}
+	csetmte(allocated_region, 0);
+	//if(mteing){
+//
+	//	int tloc =0;
+	//	//int mem_mte = 0;
+	//	
+	//	if(size <= 8) tloc = 1;
+	//	else if (size >16 && size <= 24) tloc = 3;
+	//	else if (size > 32 && size <= 40) tloc = 5;
+	//	else if (size > 48 && size <= 56) tloc = 7;
+	//	*((volatile long long*) allocated_region + tloc)  = 0x0; 
+	//	csetmte(allocated_region, 0);
+	//}
 #ifdef CLEAR_ON_ALLOC
 	clear_region(allocated_region, cheri_getlen(allocated_region));
 #endif /* CLEAR_ON_ALLOC */
@@ -1820,18 +1824,19 @@ mrs_realloc(void *ptr, size_t size)
 		return (ptr);
 
 	void *new_alloc = mrs_malloc(size);
-	if(mteing){
-
-		int tloc =0;
-		//int mem_mte = 0;
-		
-		if(size <= 8) tloc = 1;
-		else if (size >16 && size <= 24) tloc = 3;
-		else if (size > 32 && size <= 40) tloc = 5;
-		else if (size > 48 && size <= 56) tloc = 7;
-		*((volatile long long*) new_alloc + tloc)  = 0x0; 
-		csetmte(new_alloc,0);
-	}
+	//if(mteing){
+//
+	//	int tloc =0;
+	//	//int mem_mte = 0;
+	//	
+	//	if(size <= 8) tloc = 1;
+	//	else if (size >16 && size <= 24) tloc = 3;
+	//	else if (size > 32 && size <= 40) tloc = 5;
+	//	else if (size > 48 && size <= 56) tloc = 7;
+	//	*((volatile long long*) new_alloc + tloc)  = 0x0; 
+	//	csetmte(new_alloc,0);
+	//}
+	csetmte(new_alloc,0);
 	/*
 	 * Per the C standard, copy and free IFF the old pointer is valid
 	 * and allocation succeeds.
@@ -1855,12 +1860,15 @@ mrs_free(void *ptr)
 		return (REAL(free)(ptr));
 
 	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 254){
-		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) + cgettloc(ptr)*16 -1)) = cgetmte(ptr) +1; 
+		long cache_loc = ((long long) ptr) &0xFF;
+		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
 		REAL(free)(ptr);
 		return;
 	}
-	if(cgetmte(ptr) == 254)
-		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) + cgettloc(ptr)*16 -1)) = 1; 
+	if(cgetmte(ptr) == 254){
+		long cache_loc = ((long long) ptr) &0xFF;
+		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  ))  = 1; 
+	}
 
 	/*mrs_debug_printf("mrs_free: called address %p\n", ptr);*/
 
