@@ -1555,7 +1555,7 @@ mrs_malloc(size_t size)
 	}
 	else{
 		
-		if(size < 4096) padded_size = (size/16+1) * 16;
+		if(size < 64) padded_size = (size/16+1) * 16;
 		else {
 			padded_size = size;
 			padded = false;
@@ -1862,6 +1862,7 @@ mrs_free(void *ptr)
 	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 254){
 		long cache_loc = ((long long) ptr) &0xFF;
 		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
+		allocated_size -= cheri_getlen(ptr);
 		REAL(free)(ptr);
 		return;
 	}
