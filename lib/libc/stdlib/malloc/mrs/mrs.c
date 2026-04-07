@@ -368,6 +368,17 @@ static inline int cgettloc(char *a){
        return ver;
 }
 
+static inline int cgetmemmte(void * a){
+    int memmte= 0 ;
+    asm volatile("cgetmemmte %0,%1" : "=r"(memmte) : "C"(a));
+    return memmte;
+}
+
+static void csetmemmte(void  * a, int ver){
+    asm volatile("csetmemmte %0, %1, %2": :"C"(a), "C"(a), "r"(ver));
+}
+
+
 static void *
 mrs_bound_pointer(void *p, size_t size)
 {
@@ -1555,7 +1566,7 @@ mrs_malloc(size_t size)
 	}
 	else{
 		
-		if(size < 64) padded_size = (size/16+1) * 16;
+		if(size < 4096) padded_size = (size/16+1) * 16;
 		else {
 			padded_size = size;
 			padded = false;
@@ -1573,18 +1584,17 @@ mrs_malloc(size_t size)
 		tloc = (padded_size + cache_loc)/16  ;
 		//fprintf(stderr, "allocated address %lx, %lx, %x,%x\n", (long) allocated_region, cache_loc, padded_size, tloc);
 		char mem_mte = 0;
-		mem_mte = *((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ));
+		csettloc(allocated_region, tloc);
+		mem_mte =  cgetmemmte(allocated_region);//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ));
 		//mem_mte =  (mem_mte & 0xFF000000)/;
 		
 		if(tloc != 0){
 			if(mem_mte == 0){
-				*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ))  = 0x1; 
+				//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ))  = 0x1; 
+				csetmemmte(allocated_region, 0x1);
 				csetmte(allocated_region, 0x1);
-				csettloc(allocated_region, tloc);
-
 			}else{
 				csetmte(allocated_region, mem_mte);
-				csettloc(allocated_region, tloc);
 			}
 		}else {
 			csetmte(allocated_region, 0);
@@ -1859,17 +1869,10 @@ mrs_free(void *ptr)
 	if (!quarantining)
 		return (REAL(free)(ptr));
 
-	if(cgetmte(ptr) !=0 && cgetmte(ptr) < 254){
-		long cache_loc = ((long long) ptr) &0xFF;
-		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
-		allocated_size -= cheri_getlen(ptr);
-		REAL(free)(ptr);
-		return;
-	}
-	if(cgetmte(ptr) == 254){
-		long cache_loc = ((long long) ptr) &0xFF;
-		*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  ))  = 1; 
-	}
+	//if(cgetmte(ptr) == 254){
+	//	long cache_loc = ((long long) ptr) &0xFF;
+	//	*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  ))  = 1; 
+	//}
 
 	/*mrs_debug_printf("mrs_free: called address %p\n", ptr);*/
 
@@ -1878,6 +1881,17 @@ mrs_free(void *ptr)
 	if (ptr == NULL)
 		return;
 
+	if(cgetmte(ptr) !=0 && cheri_gettag(ptr)){
+		//long cache_loc = ((long long) ptr) &0xFF;
+		//*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
+		if(cgetmte(ptr) < 255){
+			csetmemmte(ptr,cgetmte(ptr) +1 );
+			allocated_size -= cheri_getlen(ptr);
+			return REAL(free)(ptr);
+		}else{
+			csetmemmte(ptr, 0 );
+		}
+	}
 	/*
 	 * If not offloading, validate the passed-in cap here and
 	 * replace it with the cap to its underlying allocation.
