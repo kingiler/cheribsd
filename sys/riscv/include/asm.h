@@ -84,10 +84,12 @@
 #if __has_feature(capabilities)
 #define	CAP(x)		c ## x
 #define	CAPN(n)		c ## n
+#define	CAP_NULL	CAP(null)
 #define	CAP_WIDTH	16
 
 #define	L_CAP		PTR(lc)
 #define	S_CAP		PTR(sc)
+#define	MV_CAP		cmove
 #define	MODESW_CAP(tmp, tmp1)					\
 	lla		tmp1, 99f;				\
 	cspecialr	CAP(tmp), pcc;				\
@@ -104,10 +106,12 @@
 #else
 #define	CAP(x)		x
 #define	CAPN(n)		x ## n
+#define	CAP_NULL	zero
 #define	CAP_WIDTH	INT_WIDTH
 
 #define	L_CAP		ld
 #define	S_CAP		sd
+#define	MV_CAP		mv
 #define	MODESW_CAP(tmp, tmp1)
 #define	MODESW_INT(tmp, tmp1)
 #endif

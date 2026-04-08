@@ -65,84 +65,84 @@
 	cspecialr ct0, sscratchc
 .endif
 #endif
-	cincoffset csp, csp, -(TF_SIZE)
-
-	csc	cra, (TF_RA)(csp)
-	csc	ctp, (TF_TP)(csp)
-	csc	cgp, (TF_GP)(csp)
-#else
-	addi	sp, sp, -(TF_SIZE)
-
-	sd	ra, (TF_RA)(sp)
-	sd	tp, (TF_TP)(sp)
-	sd	gp, (TF_GP)(sp)
 #endif
+	addi CAP(sp), CAP(sp), -(TF_SIZE)
+
+	S_CAP	CAP(ra), (TF_RA)(CAP(sp))
+	S_CAP	CAP(tp), (TF_TP)(CAP(sp))
+	S_CAP	CAP(gp), (TF_GP)(CAP(sp))
 
 .if \mode == 0	/* We came from userspace. */
 	/* Load our pcpu */
-#if __has_feature(capabilities)
-	clc	ctp, (TF_SIZE + KF_TP)(csp)
-#else
-	ld	tp, (TF_SIZE + KF_TP)(sp)
-#endif
+	L_CAP	CAP(tp), (TF_SIZE + KF_TP)(CAP(sp))
 .endif
 
-#if __has_feature(capabilities)
-	csc	ct0, (TF_T + 0 * 16)(csp)
-	csc	ct1, (TF_T + 1 * 16)(csp)
-	csc	ct2, (TF_T + 2 * 16)(csp)
-	csc	ct3, (TF_T + 3 * 16)(csp)
-	csc	ct4, (TF_T + 4 * 16)(csp)
-	csc	ct5, (TF_T + 5 * 16)(csp)
-	csc	ct6, (TF_T + 6 * 16)(csp)
+	S_CAP	CAP(t0), (TF_T + 0 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(t1), (TF_T + 1 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(t2), (TF_T + 2 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(t3), (TF_T + 3 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(t4), (TF_T + 4 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(t5), (TF_T + 5 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(t6), (TF_T + 6 * CAP_WIDTH)(CAP(sp))
 
-	csc	cs0, (TF_S + 0 * 16)(csp)
-	csc	cs1, (TF_S + 1 * 16)(csp)
-	csc	cs2, (TF_S + 2 * 16)(csp)
-	csc	cs3, (TF_S + 3 * 16)(csp)
-	csc	cs4, (TF_S + 4 * 16)(csp)
-	csc	cs5, (TF_S + 5 * 16)(csp)
-	csc	cs6, (TF_S + 6 * 16)(csp)
-	csc	cs7, (TF_S + 7 * 16)(csp)
-	csc	cs8, (TF_S + 8 * 16)(csp)
-	csc	cs9, (TF_S + 9 * 16)(csp)
-	csc	cs10, (TF_S + 10 * 16)(csp)
-	csc	cs11, (TF_S + 11 * 16)(csp)
+	S_CAP	CAP(s0), (TF_S + 0 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s1), (TF_S + 1 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s2), (TF_S + 2 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s3), (TF_S + 3 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s4), (TF_S + 4 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s5), (TF_S + 5 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s6), (TF_S + 6 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s7), (TF_S + 7 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s8), (TF_S + 8 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s9), (TF_S + 9 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s10), (TF_S + 10 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(s11), (TF_S + 11 * CAP_WIDTH)(CAP(sp))
 
-	csc	ca0, (TF_A + 0 * 16)(csp)
-	csc	ca1, (TF_A + 1 * 16)(csp)
-	csc	ca2, (TF_A + 2 * 16)(csp)
-	csc	ca3, (TF_A + 3 * 16)(csp)
-	csc	ca4, (TF_A + 4 * 16)(csp)
-	csc	ca5, (TF_A + 5 * 16)(csp)
-	csc	ca6, (TF_A + 6 * 16)(csp)
-	csc	ca7, (TF_A + 7 * 16)(csp)
+	S_CAP	CAP(a0), (TF_A + 0 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(a1), (TF_A + 1 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(a2), (TF_A + 2 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(a3), (TF_A + 3 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(a4), (TF_A + 4 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(a5), (TF_A + 5 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(a6), (TF_A + 6 * CAP_WIDTH)(CAP(sp))
+	S_CAP	CAP(a7), (TF_A + 7 * CAP_WIDTH)(CAP(sp))
 
 .if \mode == 1
 	/* Store kernel sp */
 	li	t1, TF_SIZE
-	cincoffset ct0, csp, t1
-	csc	ct0, (TF_SP)(csp)
+	add	CAP(t0), CAP(sp), t1
+	S_CAP	CAP(t0), (TF_SP)(CAP(sp))
 .else
 	/* Store user sp */
-	cspecialr ct0, sscratchc
-	csc	ct0, (TF_SP)(csp)
+#if __has_feature(capabilities)
+	cspecialr CAP(t0), sscratchc
+#else
+	csrr	t0, sscratch
+#endif
+	S_CAP	CAP(t0), (TF_SP)(CAP(sp))
 .endif
-	cmove	ct0, cnull
+	MV_CAP	CAP(t0), CAP_NULL
+#if __has_feature(capabilities)
 	cspecialw sscratchc, ct0
 	cspecialr ct0, sepcc
 	csc	ct0, (TF_SEPC)(csp)
 	cspecialr ct0, ddc
 	csc	ct0, (TF_DDC)(csp)
+#else
+	csrw	sscratch, t0
+	csrr	t0, sepc
+	sd	t0, (TF_SEPC)(sp)
+#endif
 
+#if __has_feature(capabilities)
 .if \mode == 0
 	/* Load our DDC */
 #ifdef __CHERI_PURE_CAPABILITY__
-	cmove	ct0, cnull
+	cmove	CAP(t0), CAP_NULL
 #else
-	clc	ct0, (TF_SIZE + KF_DDC)(csp)
+	L_CAP	CAP(t0), (TF_SIZE + KF_DDC)(CAP(sp))
 #endif
-	cspecialw ddc, ct0
+	cspecialw ddc, CAP(t0)
 .endif
 
 #ifndef __CHERI_PURE_CAPABILITY__
@@ -150,67 +150,14 @@
 	MODESW_INT(t1)
 #endif
 .option pop
-#else
-	sd	t0, (TF_T + 0 * 8)(sp)
-	sd	t1, (TF_T + 1 * 8)(sp)
-	sd	t2, (TF_T + 2 * 8)(sp)
-	sd	t3, (TF_T + 3 * 8)(sp)
-	sd	t4, (TF_T + 4 * 8)(sp)
-	sd	t5, (TF_T + 5 * 8)(sp)
-	sd	t6, (TF_T + 6 * 8)(sp)
-
-	sd	s0, (TF_S + 0 * 8)(sp)
-	sd	s1, (TF_S + 1 * 8)(sp)
-	sd	s2, (TF_S + 2 * 8)(sp)
-	sd	s3, (TF_S + 3 * 8)(sp)
-	sd	s4, (TF_S + 4 * 8)(sp)
-	sd	s5, (TF_S + 5 * 8)(sp)
-	sd	s6, (TF_S + 6 * 8)(sp)
-	sd	s7, (TF_S + 7 * 8)(sp)
-	sd	s8, (TF_S + 8 * 8)(sp)
-	sd	s9, (TF_S + 9 * 8)(sp)
-	sd	s10, (TF_S + 10 * 8)(sp)
-	sd	s11, (TF_S + 11 * 8)(sp)
-
-	sd	a0, (TF_A + 0 * 8)(sp)
-	sd	a1, (TF_A + 1 * 8)(sp)
-	sd	a2, (TF_A + 2 * 8)(sp)
-	sd	a3, (TF_A + 3 * 8)(sp)
-	sd	a4, (TF_A + 4 * 8)(sp)
-	sd	a5, (TF_A + 5 * 8)(sp)
-	sd	a6, (TF_A + 6 * 8)(sp)
-	sd	a7, (TF_A + 7 * 8)(sp)
-
-.if \mode == 1
-	/* Store kernel sp */
-	li	t1, TF_SIZE
-	add	t0, sp, t1
-	sd	t0, (TF_SP)(sp)
-.else
-	/* Store user sp */
-	csrr	t0, sscratch
-	sd	t0, (TF_SP)(sp)
-.endif
-	li	t0, 0
-	csrw	sscratch, t0
-	csrr	t0, sepc
-	sd	t0, (TF_SEPC)(sp)
 #endif
-#ifdef __CHERI_PURE_CAPABILITY__
+
 	csrr	t0, sstatus
-	csd	t0, (TF_SSTATUS)(csp)
+	sd	t0, (TF_SSTATUS)(PTR(sp))
 	csrr	t0, stval
-	csd	t0, (TF_STVAL)(csp)
+	sd	t0, (TF_STVAL)(PTR(sp))
 	csrr	t0, scause
-	csd	t0, (TF_SCAUSE)(csp)
-#else
-	csrr	t0, sstatus
-	sd	t0, (TF_SSTATUS)(sp)
-	csrr	t0, stval
-	sd	t0, (TF_STVAL)(sp)
-	csrr	t0, scause
-	sd	t0, (TF_SCAUSE)(sp)
-#endif
+	sd	t0, (TF_SCAUSE)(PTR(sp))
 .if \mode == 1
 	/* Disable user address access for supervisor mode exceptions. */
 	li	t0, SSTATUS_SUM
@@ -232,11 +179,7 @@
 .endm
 
 .macro load_registers mode
-#ifdef __CHERI_PURE_CAPABILITY__
-	cld	t0, (TF_SSTATUS)(csp)
-#else
-	ld	t0, (TF_SSTATUS)(sp)
-#endif
+	ld	t0, (TF_SSTATUS)(PTR(sp))
 .if \mode == 0
 	/* Ensure user interrupts will be enabled on eret */
 	li	t1, SSTATUS_SPIE
@@ -269,9 +212,7 @@
 	cspecialr ct0, ddc
 	csetaddr ct0, ct0, sp
 	cmove	csp, ct0
-#endif
 
-#ifndef __CHERI_PURE_CAPABILITY__
 .if \mode == 0
 	/* Store our DDC */
 	cspecialr ct0, ddc
@@ -285,106 +226,66 @@
 	 */
 	clc	ct0, (TF_DDC)(csp)
 	cspecialw ddc, ct0
-	clc	ct0, (TF_SEPC)(csp)
+#endif
+
+	L_CAP	CAP(t0), (TF_SEPC)(CAP(sp))
+#if __has_feature(capabilities)
 	cspecialw sepcc, ct0
+#else
+	csrw	sepc, t0
+#endif
 
 .if \mode == 0
 	/* We go to userspace. Load user csp */
-	clc	ct0, (TF_SP)(csp)
+	L_CAP	CAP(t0), (TF_SP)(CAP(sp))
+#if __has_feature(capabilities)
 	cspecialw sscratchc, ct0
-
-	/* Store our pcpu */
-	csc	ctp, (TF_SIZE + KF_TP)(csp)
-	clc	ctp, (TF_TP)(csp)
-
-	/* And restore the user's global pointer */
-	clc	cgp, (TF_GP)(csp)
-.endif
-
-	clc	cra, (TF_RA)(csp)
-
-	clc	ct0, (TF_T + 0 * 16)(csp)
-	clc	ct1, (TF_T + 1 * 16)(csp)
-	clc	ct2, (TF_T + 2 * 16)(csp)
-	clc	ct3, (TF_T + 3 * 16)(csp)
-	clc	ct4, (TF_T + 4 * 16)(csp)
-	clc	ct5, (TF_T + 5 * 16)(csp)
-	clc	ct6, (TF_T + 6 * 16)(csp)
-
-	clc	cs0, (TF_S + 0 * 16)(csp)
-	clc	cs1, (TF_S + 1 * 16)(csp)
-	clc	cs2, (TF_S + 2 * 16)(csp)
-	clc	cs3, (TF_S + 3 * 16)(csp)
-	clc	cs4, (TF_S + 4 * 16)(csp)
-	clc	cs5, (TF_S + 5 * 16)(csp)
-	clc	cs6, (TF_S + 6 * 16)(csp)
-	clc	cs7, (TF_S + 7 * 16)(csp)
-	clc	cs8, (TF_S + 8 * 16)(csp)
-	clc	cs9, (TF_S + 9 * 16)(csp)
-	clc	cs10, (TF_S + 10 * 16)(csp)
-	clc	cs11, (TF_S + 11 * 16)(csp)
-
-	clc	ca0, (TF_A + 0 * 16)(csp)
-	clc	ca1, (TF_A + 1 * 16)(csp)
-	clc	ca2, (TF_A + 2 * 16)(csp)
-	clc	ca3, (TF_A + 3 * 16)(csp)
-	clc	ca4, (TF_A + 4 * 16)(csp)
-	clc	ca5, (TF_A + 5 * 16)(csp)
-	clc	ca6, (TF_A + 6 * 16)(csp)
-	clc	ca7, (TF_A + 7 * 16)(csp)
-
-	cincoffset csp, csp, (TF_SIZE)
 #else
-	ld	t0, (TF_SEPC)(sp)
-	csrw	sepc, t0
-
-.if \mode == 0
-	/* We go to userspace. Load user sp */
-	ld	t0, (TF_SP)(sp)
 	csrw	sscratch, t0
+#endif
 
 	/* Store our pcpu */
-	sd	tp, (TF_SIZE + KF_TP)(sp)
-	ld	tp, (TF_TP)(sp)
+	S_CAP	CAP(tp), (TF_SIZE + KF_TP)(CAP(sp))
+	L_CAP	CAP(tp), (TF_TP)(CAP(sp))
 
 	/* And restore the user's global pointer */
-	ld	gp, (TF_GP)(sp)
+	L_CAP	CAP(gp), (TF_GP)(CAP(sp))
 .endif
 
-	ld	ra, (TF_RA)(sp)
+	L_CAP	CAP(ra), (TF_RA)(CAP(sp))
 
-	ld	t0, (TF_T + 0 * 8)(sp)
-	ld	t1, (TF_T + 1 * 8)(sp)
-	ld	t2, (TF_T + 2 * 8)(sp)
-	ld	t3, (TF_T + 3 * 8)(sp)
-	ld	t4, (TF_T + 4 * 8)(sp)
-	ld	t5, (TF_T + 5 * 8)(sp)
-	ld	t6, (TF_T + 6 * 8)(sp)
+	L_CAP	CAP(t0), (TF_T + 0 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(t1), (TF_T + 1 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(t2), (TF_T + 2 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(t3), (TF_T + 3 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(t4), (TF_T + 4 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(t5), (TF_T + 5 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(t6), (TF_T + 6 * CAP_WIDTH)(CAP(sp))
 
-	ld	s0, (TF_S + 0 * 8)(sp)
-	ld	s1, (TF_S + 1 * 8)(sp)
-	ld	s2, (TF_S + 2 * 8)(sp)
-	ld	s3, (TF_S + 3 * 8)(sp)
-	ld	s4, (TF_S + 4 * 8)(sp)
-	ld	s5, (TF_S + 5 * 8)(sp)
-	ld	s6, (TF_S + 6 * 8)(sp)
-	ld	s7, (TF_S + 7 * 8)(sp)
-	ld	s8, (TF_S + 8 * 8)(sp)
-	ld	s9, (TF_S + 9 * 8)(sp)
-	ld	s10, (TF_S + 10 * 8)(sp)
-	ld	s11, (TF_S + 11 * 8)(sp)
+	L_CAP	CAP(s0), (TF_S + 0 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s1), (TF_S + 1 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s2), (TF_S + 2 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s3), (TF_S + 3 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s4), (TF_S + 4 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s5), (TF_S + 5 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s6), (TF_S + 6 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s7), (TF_S + 7 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s8), (TF_S + 8 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s9), (TF_S + 9 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s10), (TF_S + 10 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(s11), (TF_S + 11 * CAP_WIDTH)(CAP(sp))
 
-	ld	a0, (TF_A + 0 * 8)(sp)
-	ld	a1, (TF_A + 1 * 8)(sp)
-	ld	a2, (TF_A + 2 * 8)(sp)
-	ld	a3, (TF_A + 3 * 8)(sp)
-	ld	a4, (TF_A + 4 * 8)(sp)
-	ld	a5, (TF_A + 5 * 8)(sp)
-	ld	a6, (TF_A + 6 * 8)(sp)
-	ld	a7, (TF_A + 7 * 8)(sp)
+	L_CAP	CAP(a0), (TF_A + 0 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(a1), (TF_A + 1 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(a2), (TF_A + 2 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(a3), (TF_A + 3 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(a4), (TF_A + 4 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(a5), (TF_A + 5 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(a6), (TF_A + 6 * CAP_WIDTH)(CAP(sp))
+	L_CAP	CAP(a7), (TF_A + 7 * CAP_WIDTH)(CAP(sp))
 
-	addi	sp, sp, (TF_SIZE)
-#endif
+	addi	CAP(sp), CAP(sp), (TF_SIZE)
+
 .option pop
 .endm
 
@@ -394,13 +295,8 @@
 1:
 	csrci	sstatus, (SSTATUS_SIE)
 
-#ifdef __CHERI_PURE_CAPABILITY__
-	clc	ca1, PC_CURTHREAD(ctp)
-	clw	a2, TD_AST(ca1)
-#else
-	ld	a1, PC_CURTHREAD(tp)
-	lw	a2, TD_AST(a1)
-#endif
+	L_PTR	PTR(a1), PC_CURTHREAD(PTR(tp))
+	lw	a2, TD_AST(PTR(a1))
 
 	beqz	a2, 2f
 
@@ -409,13 +305,8 @@
 	csrs	sstatus, a4
 
 	/* Handle the ast */
-#ifdef __CHERI_PURE_CAPABILITY__
-	cmove	ca0, csp
-	ccall	_C_LABEL(ast)
-#else
-	mv	a0, sp
+	MV_PTR	PTR(a0), PTR(sp)
 	call	_C_LABEL(ast)
-#endif
 
 	/* Re-check for new ast scheduled */
 	j	1b
@@ -443,26 +334,16 @@ END(cpu_exception_handler)
 
 ENTRY(cpu_exception_handler_supervisor)
 	save_registers 1
-#ifdef __CHERI_PURE_CAPABILITY__
-	cmove	ca0, csp
-	ccall	_C_LABEL(do_trap_supervisor)
-#else
-	mv	a0, sp
+	MV_PTR	PTR(a0), PTR(sp)
 	call	_C_LABEL(do_trap_supervisor)
-#endif
 	load_registers 1
 	sret
 END(cpu_exception_handler_supervisor)
 
 ENTRY(cpu_exception_handler_user)
 	save_registers 0
-#ifdef __CHERI_PURE_CAPABILITY__
-	cmove	ca0, csp
-	ccall	_C_LABEL(do_trap_user)
-#else
-	mv	a0, sp
+	MV_PTR	PTR(a0), PTR(sp)
 	call	_C_LABEL(do_trap_user)
-#endif
 	do_ast
 	load_registers 0
 #if __has_feature(capabilities)
