@@ -1566,7 +1566,12 @@ mrs_malloc(size_t size)
 	}
 	else{
 		
-		if(size < 4096) padded_size = (size/16+1) * 16;
+		if(size < 128) padded_size = (size/16+1) * 16;
+		else if (size < 256) padded_size = (size/32+1) * 32;
+		else if (size < 512) padded_size = (size/64+1) * 64;
+		else if (size < 1024) padded_size = (size/128 + 1) * 128;
+		else if (size < 2048) padded_size = (size/256 + 1) * 256;
+		else if (size < 4096) padded_size = (size/512 + 1) * 512;
 		else {
 			padded_size = size;
 			padded = false;
