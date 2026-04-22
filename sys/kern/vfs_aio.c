@@ -340,7 +340,7 @@ static int	filt_lioattach(struct knote *kn);
 static void	filt_liodetach(struct knote *kn);
 static int	filt_lio(struct knote *kn, long hint);
 static int	kern_aio_cancel(struct thread *td, int fd, struct aiocb *ujob,
-		    struct aiocb_ops *ops)
+		    struct aiocb_ops *ops);
 
 static void	aiocb_free_kaiocb(struct kaiocb *);
 
