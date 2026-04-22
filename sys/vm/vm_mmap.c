@@ -1469,8 +1469,7 @@ sys_msetname(struct thread *td, struct msetname_args *uap)
 		return (EPROT);
 #endif
 
-	return (kern_msetname(td, (uintptr_t)(uintcap_t)uap->addr, uap->len,
-	    uap->name));
+	return (kern_msetname(td, (uintptr_t)uap->addr, uap->len, uap->name));
 }
 
 int
