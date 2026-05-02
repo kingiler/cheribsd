@@ -323,6 +323,9 @@ static bool bound_pointers = false;
 static bool abort_on_validation_failure = true;
 static bool mrs_initialized = false;
 
+static int revoke_count = 0;
+static int malloc_count = 0;
+
 static unsigned int quarantine_denominator = QUARANTINE_DENOMINATOR;
 static unsigned int quarantine_numerator = QUARANTINE_NUMERATOR;
 
@@ -354,6 +357,10 @@ static void csetmte(void  * a, int ver){
 
 static void csettloc(void  * a, int ver){
     asm volatile("csettloc %0, %1, %2": :"C"(a), "C"(a), "r"(ver));
+}
+
+static void csettmode(void  * a, int mode){
+    asm volatile("csettmode %0, %1, %2": :"C"(a), "C"(a), "r"(mode));
 }
 
 static inline int cgetmte(char *a){
@@ -858,6 +865,7 @@ app_quarantine_revoke_async(void)
 
 		curr->epoch = cri->epochs.enqueue;
 		curr->revoking = true;
+		revoke_count ++;
 		TAILQ_INSERT_TAIL(&app_quarantine_revoke_list, curr, next);
 	}
 	assert(!TAILQ_EMPTY(&app_quarantine_revoke_list));
@@ -1502,6 +1510,16 @@ mrs_init(void)
 	assert(mrs_initialized);
 }
 
+__attribute__((destructor))
+static void mrs_destructor(void)
+{
+	if(getenv("CC_DEBUG")!=NULL){
+		mrs_printf("revoke counter: %d\n", revoke_count);
+		mrs_printf("alloc counter: %d\n", malloc_count);
+	}
+}
+
+
 __attribute__((__constructor__(100)))
 static void
 mrs_constructor(void)
@@ -1560,18 +1578,35 @@ mrs_malloc(size_t size)
 	int tloc =0;
 	int padded_size = 0;
 	bool padded = true;
+	int tmode = 0;
 	if (size < CAPREVOKE_BITMAP_ALIGNMENT){
 		allocated_region = mrs_real_malloc(CAPREVOKE_BITMAP_ALIGNMENT);
 		padded_size = 16;
 	}
 	else{
 		
-		if(size < 128) padded_size = (size/16+1) * 16;
-		else if (size < 256) padded_size = (size/32+1) * 32;
-		else if (size < 512) padded_size = (size/64+1) * 64;
-		else if (size < 1024) padded_size = (size/128 + 1) * 128;
-		else if (size < 2048) padded_size = (size/256 + 1) * 256;
-		else if (size < 4096) padded_size = (size/512 + 1) * 512;
+		if(size < 128){
+			padded_size = (size/16+1) * 16;
+
+		}
+		else if(size < 512){
+			if (size < 256) padded_size = (size/32+1) * 32;
+			else  padded_size = (size/64+1) * 64;
+			tmode = 1;
+		}
+		else if (size < 2048){
+			if (size < 1024) padded_size = (size/128 + 1) * 128;
+			else padded_size = (size/256 + 1) * 256;
+			tmode = 2;
+		}
+		else if(size < 4096){
+			padded_size = (size/512 + 1) * 512;
+			tmode = 3;
+		}
+		//else if(size < 4096*8){
+		//	padded_size = (size/1024 + 1) * 1024;
+		//	tmode = 3;
+		//}
 		else {
 			padded_size = size;
 			padded = false;
@@ -1584,14 +1619,32 @@ mrs_malloc(size_t size)
 		return (allocated_region);
 	}
 	if(mteing && padded){
-		long cache_loc = ((long long) allocated_region) &0xFF;
+		long cache_loc = 0;
 		
-		tloc = (padded_size + cache_loc)/16  ;
-		//fprintf(stderr, "allocated address %lx, %lx, %x,%x\n", (long) allocated_region, cache_loc, padded_size, tloc);
+		if(tmode == 0){
+			cache_loc = ((long long) allocated_region) &0x7F;
+			tloc = (padded_size + cache_loc)/4  ;
+		}
+		else if(tmode == 1){
+			cache_loc = ((long long) allocated_region) &0x1FF;
+			tloc = (padded_size + cache_loc)/16 ;
+		}
+		else if (tmode ==2){
+			cache_loc = ((long long) allocated_region) &0x7FF;
+			tloc = (padded_size + cache_loc)/64 ;
+		}
+		else if (tmode ==3){
+			cache_loc = ((long long) allocated_region) &0xFFF;
+			tloc = (padded_size + cache_loc)/256 ;
+		}	
+		else if (tmode ==4){
+			cache_loc = ((long long) allocated_region) &0x7FFF;
+			tloc = (padded_size + cache_loc)/1024 ;
+		}	
 		char mem_mte = 0;
+		csettmode(allocated_region, tmode);
 		csettloc(allocated_region, tloc);
 		mem_mte =  cgetmemmte(allocated_region);//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ));
-		//mem_mte =  (mem_mte & 0xFF000000)/;
 		
 		if(tloc != 0){
 			if(mem_mte == 0){
@@ -1619,6 +1672,7 @@ mrs_malloc(size_t size)
 	    size, allocated_region);*/
 
 	MRS_UTRACE(UTRACE_MRS_MALLOC, NULL, size, 0, allocated_region);
+	malloc_count ++;
 	return (allocated_region);
 }
 
@@ -1689,6 +1743,7 @@ mrs_calloc(size_t number, size_t size)
 	/*mrs_debug_printf("mrs_calloc: exit called %d size 0x%zx address %p\n", number, size, allocated_region);*/
 
 	MRS_UTRACE(UTRACE_MRS_CALLOC, NULL, size, number, allocated_region);
+	malloc_count++;
 	return (allocated_region);
 }
 
@@ -1744,6 +1799,7 @@ mrs_posix_memalign(void **ptr, size_t alignment, size_t size)
 	increment_allocated_size(*ptr);
 
 	MRS_UTRACE(UTRACE_MRS_POSIX_MEMALIGN, NULL, size, alignment, *ptr);
+	malloc_count++;
 	return (ret);
 }
 
@@ -1796,6 +1852,7 @@ mrs_aligned_alloc(size_t alignment, size_t size)
 
 	MRS_UTRACE(UTRACE_MRS_ALIGNED_ALLOC, NULL, size, alignment,
 	    allocated_region);
+	malloc_count++;
 	return (allocated_region);
 }
 
