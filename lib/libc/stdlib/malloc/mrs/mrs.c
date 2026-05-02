@@ -1603,10 +1603,10 @@ mrs_malloc(size_t size)
 			padded_size = (size/512 + 1) * 512;
 			tmode = 3;
 		}
-		//else if(size < 4096*8){
-		//	padded_size = (size/1024 + 1) * 1024;
-		//	tmode = 3;
-		//}
+		else if(size < 4096*8){
+			padded_size = (size/1024 + 1) * 1024;
+			tmode = 4;
+		}
 		else {
 			padded_size = size;
 			padded = false;
