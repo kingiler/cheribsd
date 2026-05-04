@@ -1599,14 +1599,32 @@ mrs_malloc(size_t size)
 			else padded_size = (size/256 + 1) * 256;
 			tmode = 2;
 		}
-		else if(size < 4096){
-			padded_size = (size/512 + 1) * 512;
+		else if(size < 4096*4){
+			if (size < 4096) padded_size = (size/512 + 1) * 512;
+			else if (size < 4096*2) padded_size = (size/1024 + 1) * 1024;
+			else padded_size = (size/2048 + 1) * 2048;
 			tmode = 3;
 		}
-		else if(size < 4096*8){
-			padded_size = (size/1024 + 1) * 1024;
-			tmode = 4;
-		}
+		//else if(size < 4096*16){
+		//	if (size < (4096*8)) padded_size = (size/4096 + 1) * 4096;
+		//	else padded_size = (size/(4096*2) + 1) * (4096*2);
+		//	tmode = 4;
+		//}
+		//else if(size < 4096*64){
+		//	if(size < 4096*32) padded_size = (size/(4096*4) + 1) * (4096*4);
+		//	else padded_size = (size/(4096*8) + 1) * (4096*8);
+		//	tmode = 5;
+		//}
+		//else if(size < 4096*256){
+		//	if(size < 4096*128) padded_size = (size/(4096 * 16) + 1) * (4096 * 16);
+		//	else padded_size = (size/(4096 * 32) + 1) *(4096 * 32);
+		//	tmode = 6;
+		//}
+		//else if(size < 4096*1024){
+		//	if(size < 4096*512) padded_size = (size/(4096 * 64) + 1) * (4096 * 64);
+		//	else padded_size = (size/(4096 * 128) + 1) *(4096 * 128);
+		//	tmode = 7;
+		//}
 		else {
 			padded_size = size;
 			padded = false;
@@ -1634,13 +1652,25 @@ mrs_malloc(size_t size)
 			tloc = (padded_size + cache_loc)/64 ;
 		}
 		else if (tmode ==3){
-			cache_loc = ((long long) allocated_region) &0xFFF;
+			cache_loc = ((long long) allocated_region) &0x3FFF;
 			tloc = (padded_size + cache_loc)/256 ;
 		}	
-		else if (tmode ==4){
-			cache_loc = ((long long) allocated_region) &0x7FFF;
-			tloc = (padded_size + cache_loc)/1024 ;
-		}	
+		//else if (tmode ==4){
+		//	cache_loc = ((long long) allocated_region) &0x7FFF;
+		//	tloc = (padded_size + cache_loc)/1024 ;
+		//}	
+		//else if (tmode == 5){
+		//	cache_loc = ((long long) allocated_region) &0x3FFFF;
+		//	tloc = (padded_size + cache_loc)/4096 ;
+		//}	
+		//else if (tmode == 6){
+		//	cache_loc = ((long long) allocated_region) &0x1FFFFF;
+		//	tloc = (padded_size + cache_loc)/(4096*4) ;
+		//}	
+		//else if (tmode == 7){
+		//	cache_loc = ((long long) allocated_region) &0x3FFFFF;
+		//	tloc = (padded_size + cache_loc)/(4096*16) ;
+		//}
 		char mem_mte = 0;
 		csettmode(allocated_region, tmode);
 		csettloc(allocated_region, tloc);
