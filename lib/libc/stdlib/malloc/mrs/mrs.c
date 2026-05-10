@@ -1584,50 +1584,53 @@ mrs_malloc(size_t size)
 		padded_size = 16;
 	}
 	else{
-		
-		if(size < 128){
-			padded_size = (size/16+1) * 16;
+		if(mteing){
+			if(size < 128){
+				padded_size = (size/16+1) * 16;
 
-		}
-		else if(size < 512){
-			if (size < 256) padded_size = (size/32+1) * 32;
-			else  padded_size = (size/64+1) * 64;
-			tmode = 1;
-		}
-		else if (size < 2048){
-			if (size < 1024) padded_size = (size/128 + 1) * 128;
-			else padded_size = (size/256 + 1) * 256;
-			tmode = 2;
-		}
-		else if(size < 4096*4){
-			if (size < 4096) padded_size = (size/512 + 1) * 512;
-			else if (size < 4096*2) padded_size = (size/1024 + 1) * 1024;
-			else padded_size = (size/2048 + 1) * 2048;
-			tmode = 3;
-		}
-		else if(size < 4096*16){
-			if (size < (4096*8)) padded_size = (size/4096 + 1) * 4096;
-			else padded_size = (size/(4096*2) + 1) * (4096*2);
-			tmode = 4;
-		}
-		//else if(size < 4096*64){
-		//	if(size < 4096*32) padded_size = (size/(4096*4) + 1) * (4096*4);
-		//	else padded_size = (size/(4096*8) + 1) * (4096*8);
-		//	tmode = 5;
-		//}
-		//else if(size < 4096*256){
-		//	if(size < 4096*128) padded_size = (size/(4096 * 16) + 1) * (4096 * 16);
-		//	else padded_size = (size/(4096 * 32) + 1) *(4096 * 32);
-		//	tmode = 6;
-		//}
-		//else if(size < 4096*1024){
-		//	if(size < 4096*512) padded_size = (size/(4096 * 64) + 1) * (4096 * 64);
-		//	else padded_size = (size/(4096 * 128) + 1) *(4096 * 128);
-		//	tmode = 7;
-		//}
-		else {
+			}
+			else if(size < 512){
+				if (size < 256) padded_size = (size/32+1) * 32;
+				else  padded_size = (size/64+1) * 64;
+				tmode = 1;
+			}
+			else if (size < 2048){
+				if (size < 1024) padded_size = (size/128 + 1) * 128;
+				else padded_size = (size/256 + 1) * 256;
+				tmode = 2;
+			}
+			else if(size < 4096*4){
+				if (size < 4096) padded_size = (size/512 + 1) * 512;
+				else if (size < 4096*2) padded_size = (size/1024 + 1) * 1024;
+				else padded_size = (size/2048 + 1) * 2048;
+				tmode = 3;
+			}
+			else if(size < 4096*16){
+				if (size < (4096*8)) padded_size = (size/4096 + 1) * 4096;
+				else padded_size = (size/(4096*2) + 1) * (4096*2);
+				tmode = 4;
+			}
+			//else if(size < 4096*64){
+			//	if(size < 4096*32) padded_size = (size/(4096*4) + 1) * (4096*4);
+			//	else padded_size = (size/(4096*8) + 1) * (4096*8);
+			//	tmode = 5;
+			//}
+			//else if(size < 4096*256){
+			//	if(size < 4096*128) padded_size = (size/(4096 * 16) + 1) * (4096 * 16);
+			//	else padded_size = (size/(4096 * 32) + 1) *(4096 * 32);
+			//	tmode = 6;
+			//}
+			//else if(size < 4096*1024){
+			//	if(size < 4096*512) padded_size = (size/(4096 * 64) + 1) * (4096 * 64);
+			//	else padded_size = (size/(4096 * 128) + 1) *(4096 * 128);
+			//	tmode = 7;
+			//}
+			else {
+				padded_size = size;
+				padded = false;
+			}
+		}else{
 			padded_size = size;
-			padded = false;
 		}
 		allocated_region = mrs_real_malloc(padded_size);
 	}
@@ -1648,8 +1651,8 @@ mrs_malloc(size_t size)
 			tloc = (padded_size + cache_loc)/16 ;
 		}
 		else if (tmode ==2){
-			cache_loc = ((long long) allocated_region) &0x7FF;
-			tloc = (padded_size + cache_loc)/64 ;
+			cache_loc = ((long long) allocated_region) &0xFFF;
+			tloc = (padded_size + cache_loc)/128 ;
 		}
 		else if (tmode ==3){
 			cache_loc = ((long long) allocated_region) &0x3FFF;
@@ -1687,7 +1690,7 @@ mrs_malloc(size_t size)
 		}else {
 			csetmte(allocated_region, 0);
 		}
-	
+		allocated_region = __builtin_cheri_bounds_set(allocated_region, size);	
 	}else{
 		csetmte(allocated_region, 0);
 	}
@@ -1703,6 +1706,7 @@ mrs_malloc(size_t size)
 
 	MRS_UTRACE(UTRACE_MRS_MALLOC, NULL, size, 0, allocated_region);
 	malloc_count ++;
+
 	return (allocated_region);
 }
 
@@ -1972,16 +1976,18 @@ mrs_free(void *ptr)
 
 	if (ptr == NULL)
 		return;
-
-	if(cgetmte(ptr) !=0 && cheri_gettag(ptr)){
-		//long cache_loc = ((long long) ptr) &0xFF;
-		//*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
-		if(cgetmte(ptr) < 255){
-			csetmemmte(ptr,cgetmte(ptr) +1 );
-			allocated_size -= cheri_getlen(ptr);
-			return REAL(free)(ptr);
-		}else{
-			csetmemmte(ptr, 0 );
+	
+	if(mteing){
+		if(cgetmte(ptr) !=0 && cheri_gettag(ptr)){
+			//long cache_loc = ((long long) ptr) &0xFF;
+			//*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
+			if(cgetmte(ptr) < 255){
+				csetmemmte(ptr,cgetmte(ptr) +1 );
+				allocated_size -= cheri_getlen(ptr);
+				return REAL(free)(ptr);
+			}else{
+				csetmemmte(ptr, 0 );
+			}
 		}
 	}
 	/*
