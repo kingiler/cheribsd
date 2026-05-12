@@ -96,6 +96,9 @@
  * of the heap (default 1/4).
  */
 
+//#define MTE_FPGA 1
+//#define DOUBLE_FREE 1
+
 #ifdef QUARANTINE_RATIO
 #error QUARANTINE_RATIO is obsolete, use QUARANTINE_NUMERATOR/QUARANTINE_DENOMINATOR
 #endif
@@ -1584,6 +1587,7 @@ mrs_malloc(size_t size)
 		padded_size = 16;
 	}
 	else{
+#ifndef MTE_FPGA
 		if(mteing){
 			if(size < 128){
 				padded_size = (size/16+1) * 16;
@@ -1610,21 +1614,27 @@ mrs_malloc(size_t size)
 				else padded_size = (size/(4096*2) + 1) * (4096*2);
 				tmode = 4;
 			}
-			//else if(size < 4096*64){
-			//	if(size < 4096*32) padded_size = (size/(4096*4) + 1) * (4096*4);
-			//	else padded_size = (size/(4096*8) + 1) * (4096*8);
-			//	tmode = 5;
-			//}
-			//else if(size < 4096*256){
-			//	if(size < 4096*128) padded_size = (size/(4096 * 16) + 1) * (4096 * 16);
-			//	else padded_size = (size/(4096 * 32) + 1) *(4096 * 32);
-			//	tmode = 6;
-			//}
-			//else if(size < 4096*1024){
-			//	if(size < 4096*512) padded_size = (size/(4096 * 64) + 1) * (4096 * 64);
-			//	else padded_size = (size/(4096 * 128) + 1) *(4096 * 128);
-			//	tmode = 7;
-			//}
+			else if(size < 4096*64){
+				if(size < 4096*32) padded_size = (size/(4096*4) + 1) * (4096*4);
+				else padded_size = (size/(4096*8) + 1) * (4096*8);
+				tmode = 5;
+			}
+			else if(size < 4096*256){
+				if(size < 4096*128) padded_size = (size/(4096 * 16) + 1) * (4096 * 16);
+				else padded_size = (size/(4096 * 32) + 1) *(4096 * 32);
+				tmode = 6;
+			}
+			else if(size < 4096*1024){
+				if(size < 4096*512) padded_size = (size/(4096 * 64) + 1) * (4096 * 64);
+				else padded_size = (size/(4096 * 128) + 1) *(4096 * 128);
+				tmode = 7;
+			}
+#else 
+			if(size < 64){
+				padded_size = (size/16+1) * 16;
+
+			}
+#endif 
 			else {
 				padded_size = size;
 				padded = false;
@@ -1656,33 +1666,41 @@ mrs_malloc(size_t size)
 		}
 		else if (tmode ==3){
 			cache_loc = ((long long) allocated_region) &0x3FFF;
-			tloc = (padded_size + cache_loc)/256 ;
+			tloc = (padded_size + cache_loc)/512 ;
 		}	
 		else if (tmode ==4){
 			cache_loc = ((long long) allocated_region) &0x3FFFF;
 			tloc = (padded_size + cache_loc)/4096 ;
 		}	
 		else if (tmode == 5){
-			cache_loc = ((long long) allocated_region) &0x1FFFFF;
+			cache_loc = ((long long) allocated_region) &0xfff;
 			tloc = (padded_size + cache_loc)/(4096*4) ;
 		}	
 		else if (tmode == 6){
-			cache_loc = ((long long) allocated_region) &0x1FFFFF;
-			tloc = (padded_size + cache_loc)/(4096*4) ;
+			cache_loc = ((long long) allocated_region) &0xFFF;
+			tloc = (padded_size + cache_loc)/(4096*16) ;
 		}	
 		else if (tmode == 7){
-			cache_loc = ((long long) allocated_region) &0x3FFFFF;
-			tloc = (padded_size + cache_loc)/(4096*16) ;
+			cache_loc = ((long long) allocated_region) &0xFFF;
+			tloc = (padded_size + cache_loc)/(4096*64) ;
 		}
 		char mem_mte = 0;
+#ifndef MTE_FPGA
 		csettmode(allocated_region, tmode);
+#endif
 		csettloc(allocated_region, tloc);
 		mem_mte =  cgetmemmte(allocated_region);//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ));
 		
 		if(tloc != 0){
 			if(mem_mte == 0){
 				//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ))  = 0x1; 
+#ifndef MTE_FPGA
 				csetmemmte(allocated_region, 0x1);
+#else 	
+				cache_loc = ((long long) allocated_region) &0x7F;
+				tloc = (padded_size + cache_loc)/4  ;
+				*((volatile char*) (allocated_region - cache_loc + tloc*4 -1  ))  = 0x1; 
+#endif 
 				csetmte(allocated_region, 0x1);
 			}else{
 				csetmte(allocated_region, mem_mte);
@@ -1978,15 +1996,35 @@ mrs_free(void *ptr)
 		return;
 	
 	if(mteing){
+
+
+
 		if(cgetmte(ptr) !=0 && cheri_gettag(ptr)){
+#ifdef DOUBLE_FREE
+			if(cgetmemmte(ptr) > cgetmte(ptr)){
+				fprintf(stderr, "double free detected\n");
+				abort();
+			}
+#endif 
 			//long cache_loc = ((long long) ptr) &0xFF;
 			//*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
 			if(cgetmte(ptr) < 255){
+#ifndef MTE_FPGA
 				csetmemmte(ptr,cgetmte(ptr) +1 );
+#else 
+				long cache_loc = ((long long) ptr) &0x7F;
+				*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*4 -1  )) = cgetmte(ptr) +1; 
+#endif 
 				allocated_size -= cheri_getlen(ptr);
 				return REAL(free)(ptr);
 			}else{
+#ifndef MTE_FPGA
 				csetmemmte(ptr, 0 );
+#else 
+				long cache_loc = ((long long) ptr) &0x7F;
+				*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*4 -1  )) = 0; 
+
+#endif 
 			}
 		}
 	}
