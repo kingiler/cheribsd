@@ -41,6 +41,9 @@ enum {
 extern int copy_staging;
 #endif
 
+/* Align the staging address to 2M. */
+#define	EFI_STAGING_2M_ALIGN	1
+
 /* Useful for various calculations */
 #define	M(x)	((x) * 1024 * 1024)
 #define	G(x)	(1ULL * (x) * 1024 * 1024 * 1024)
