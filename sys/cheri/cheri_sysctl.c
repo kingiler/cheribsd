@@ -128,4 +128,8 @@ int security_cheri_runtime_revocation_async = 1;
 SYSCTL_INT(_security_cheri, OID_AUTO, runtime_revocation_async,
     CTLFLAG_RWTUN, &security_cheri_runtime_revocation_async, 0,
     "Userspace requests (a)synchronous revocation by default");
+
+#ifdef CHERI_CAPREVOKE_CAPID
+FEATURE(cheri_caprevoke_capid, "CHERI CapID revocation support");
+#endif
 #endif  /* CHERI_CAPREVOKE */
