@@ -45,4 +45,53 @@ extern void * __capability cheri_buildcap_safe(void * __capability, intcap_t);
 #define	cheri_buildcap(x, y)	cheri_buildcap_safe((x), (y))
 #endif
 
+#ifdef __CHERI_PURE_CAPABILITY__
+/* CHERI Cap-ID intrinsics */
+#define	cheri_capid_set(x, id) __extension__({			\
+	__typeof__(x) __result;					\
+	__asm__ __volatile__("csetmte %0, %1, %2"		\
+	    : "=C" (__result) : "C" (x), "r" (id));		\
+	__result; })
+
+#define	cheri_capid_loc_set(x, loc) __extension__({		\
+	__typeof__(x) __result;					\
+	__asm__ __volatile__("csettloc %0, %1, %2"		\
+	    : "=C" (__result) : "C" (x), "r" (loc));		\
+	__result; })
+
+#define	cheri_capid_mode_set(x, mode) __extension__({		\
+	__typeof__(x) __result;					\
+	__asm__ __volatile__("csettmode %0, %1, %2"		\
+	    : "=C" (__result) : "C" (x), "r" (mode));		\
+	__result; })
+
+#define	cheri_capid_get(x) __extension__({			\
+	int __result;						\
+	__asm__ __volatile__("cgetmte %0, %1"			\
+	    : "=r" (__result) : "C" (x));			\
+	__result; })
+
+#define	cheri_capid_loc_get(x) __extension__({			\
+	int __result;						\
+	__asm__ __volatile__("cgettloc %0, %1"			\
+	    : "=r" (__result) : "C" (x));			\
+	__result; })
+
+#define	cheri_capid_mode_get(x) __extension__({			\
+	int __result;						\
+	__asm__ __volatile__("cgettmode %0, %1"			\
+	    : "=r" (__result) : "C" (x));			\
+	__result; })
+
+#define	cheri_capid_load(x) __extension__({			\
+	int __result;						\
+	__asm__ __volatile__("cgetmemmte %0, %1"		\
+	    : "=r" (__result) : "C" (x));			\
+	__result; })
+
+#define	cheri_capid_store(x, id)				\
+	__asm__ __volatile__("csetmemmte %0, %0, %1"		\
+	    : : "C" (x), "r" (id))
+#endif
+
 #endif /* !_MACHINE_CHERIC_H_ */
