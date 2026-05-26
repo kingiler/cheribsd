@@ -163,6 +163,10 @@ extern int security_cheri_runtime_revocation_async;
 
 struct vmspace;
 void cheri_revoke_vmspace_fork(struct vmspace *dst, struct vmspace *src);
+
+#ifdef CHERI_CAPREVOKE_CAPID
+int fuecapid(volatile void * __capability uaddr, int *capid);
+#endif
 #endif
 
 #endif /* !__SYS_CHERI_REVOKE_KERN_H__ */

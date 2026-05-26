@@ -319,6 +319,67 @@ ENTRY(fuecap)
 END(fuecap)
 #endif
 
+#ifdef CHERI_CAPREVOKE_CAPID
+#ifndef __CHERI_PURE_CAPABILITY__
+#error "Needs purecap kernel"
+#endif
+
+/*
+ * int fuecapid(volatile void * __capability, int32_t *capid)
+ */
+ENTRY(fuecapid)
+        li      a2, VM_MAXUSER_ADDRESS
+        bgeu    a0, a2, fsu_fault_nopcb
+
+        /*
+	 * Use a dedicate fault handler to distinguish capid probes.
+	 * XXX-AM: This is necessary to suppress nested revoker scans.
+	 */
+#ifdef __CHERI_PURE_CAPABILITY__
+        clgc    ca6, fsu_fault
+	clc	ct0, PC_CURTHREAD(ctp)
+	clc	ct0, TD_PCB(ct0)
+	csc	ca6, PCB_ONFAULT(ct0)
+	cld	t1, PCB_CAPID_PROBE_DEPTH(ct0)
+	addi	t1, t1, 1
+	csd	t1, PCB_CAPID_PROBE_DEPTH(ct0)
+#else
+        la      a6, fsu_fault
+	ld	t0, PC_CURTHREAD(tp)
+	ld	t0, TD_PCB(t0)
+	sd	a6, PCB_ONFAULT(t0)
+	ld	t1, PCB_CAPID_PROBE_DEPTH(t0)
+	addi	t1, t1, 1
+	sd	t1, PCB_CAPID_PROBE_DEPTH(t0)
+
+        cspecialr       ca6, ddc
+        csetaddr        ca0, ca6, a0
+#endif
+        ENTER_USER_ACCESS(a2)
+	cgetmemmte	a3, ca0
+        EXIT_USER_ACCESS(a2)
+#ifdef __CHERI_PURE_CAPABILITY__
+	clc	ct0, PC_CURTHREAD(ctp)
+	clc	ct0, TD_PCB(ct0)
+	csc	cnull, PCB_ONFAULT(ct0)
+	cld	t1, PCB_CAPID_PROBE_DEPTH(ct0)
+	addi	t1, t1, -1
+	csd	t1, PCB_CAPID_PROBE_DEPTH(ct0)
+	csw	a3, 0(ca1)
+#else
+	ld	t0, PC_CURTHREAD(tp)
+	ld	t0, TD_PCB(t0)
+	sd	x0, PCB_ONFAULT(t0)
+	ld	t1, PCB_CAPID_PROBE_DEPTH(t0)
+	addi	t1, t1, -1
+	sd	t1, PCB_CAPID_PROBE_DEPTH(t0)
+	sw	a3, 0(a1)
+#endif
+	li	a0, 0
+	RETURN
+END(fuecapid)
+#endif
+
 /*
  * int subyte(volatile void * __capability, int)
  */

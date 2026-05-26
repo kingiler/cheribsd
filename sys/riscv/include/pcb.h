@@ -59,6 +59,10 @@ struct pcb {
 #define	PCB_FP_STARTED	0x1
 #define	PCB_FP_USERMASK	0x1
 	vm_pointer_t	pcb_onfault;	/* Copyinout fault handler */
+#ifdef CHERI_CAPREVOKE_CAPID
+	/* Track recursive capid probe faults */
+	uint64_t	pcb_capid_probe_depth;
+#endif
 };
 
 #ifdef _KERNEL
