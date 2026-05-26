@@ -32,8 +32,10 @@
 
 #include <sys/param.h>
 #include <sys/systm.h>
+#include <sys/counter.h>
 
 #include <machine/_inttypes.h>
+#include <machine/cheric.h>
 #include <cheri/cheri.h>
 #include <cheri/cheric.h>
 #include <cheri/revoke.h>
@@ -183,6 +185,105 @@ vm_cheri_revoke_test_mem_fine_range(const uint8_t * __capability crshadow,
 	return (0);
 }
 
+#ifdef CHERI_CAPREVOKE_CAPID
+/*
+ * If the capability under test is valid and has some memory permissions:
+ * Check for CapID: if the CapID is non-zero, probe the capability to verify
+ * whether CapID == QUARANTINED_CAPID.
+ * If the CapID == 0, revoke using the shadow bitmap.
+ */
+static unsigned long
+vm_cheri_revoke_test_capid(const uint8_t * __capability crshadow __unused,
+    uintcap_t cut, unsigned long perms, vm_offset_t start __unused,
+    vm_offset_t end __unused)
+{
+	void * __capability priv_cut;
+	int capid;
+	int err;
+
+	/*
+	 * We must tolerate page faults during the CapID probe.
+	 * These are user page faults coming from kernel space.
+	 * To do this we need CAPREVOKE_FAST_COPYIN or fuecapid to
+	 * install a custom pcb_onfault.
+	 * If we get a page fault, this also means that we may get
+	 * a recurive page scan, because the revoker needs to observe
+	 * that page. Luckily the CapID probe is nominally a data load
+	 * and should never trigger a CRG fault.
+	 * The recursive page scan MUST be avoided to keep the fucapid
+	 * computationally bounded.
+	 * To do so, we make sure to fault-in the pages without capability
+	 * permission bits, to ensure that a full scan will occur at a later
+	 * stage.
+	 *
+	 * Note that the cut capability needs to be re-derived here, because to
+	 * perform the CapID probe:
+	 * - It can not be sealed
+	 * - It must permit PERM_LOAD (XXX-AM maybe?)
+	 * - It must have CapID == 0 (XXX-AM or maybe bear PERM_CAPID?)
+	 * XXX-AM: We should use cheri_capability_build_user_rwx, but
+	 * it will lock the curthread map and lookup the mapping to
+	 * check that the reservation layout is sensible.
+	 * We use the userspace root cap here to avoid doing
+	 * this in the revoker loop.
+	 */
+	if (cheri_capid_get(cut) != 0) {
+		priv_cut = cheri_setoffset(userspace_root_cap,
+		    cheri_getbase(cut));
+		priv_cut = cheri_setbounds(priv_cut, cheri_getlen(cut));
+		priv_cut = cheri_capid_mode_set(priv_cut,
+		    cheri_capid_mode_get(cut));
+		priv_cut = cheri_capid_loc_set(priv_cut,
+		    cheri_capid_loc_get(cut));
+		err = fuecapid(priv_cut, &capid);
+
+		counter_u64_add(cheri_capid_probe, 1);
+		if (err != KERN_SUCCESS)
+			counter_u64_add(cheri_capid_probe_fail, 1);
+		/*
+		 * The capid probe has an interesting failure mode when the
+		 * underlying memory is not backed (e.g. stack guard pages).
+		 * These cases are suspicious because we should never see
+		 * a capability with CapID != 0 that points to unmapped
+		 * memory? Or maybe we can, if somebody calls munmap() but
+		 * the entry is not revoked yet...
+		 * In these cases it seems prudent to fail-close and invalidate
+		 * the capability.
+		 */
+		return (err != KERN_SUCCESS || capid == CAPID_QUARANTINED);
+	}
+
+	if (vm_cheri_revoke_test_mem_nomap(crshadow, cut)) {
+		if (__builtin_expect(perms & CHERI_PERM_SW_VMEM, 0)) {
+			return (0);
+		}
+
+		return ((perms & CHERI_PERMS_HWALL_MEMORY) != 0);
+	}
+
+	return (0);
+}
+
+/*
+ * Same as vm_cheri_revoke_test_capid, but also check the revoked map entry.
+ */
+static unsigned long
+vm_cheri_revoke_test_capid_just_mem(const uint8_t * __capability crshadow __unused,
+    uintcap_t cut, unsigned long perms, vm_offset_t start __unused,
+    vm_offset_t end __unused)
+{
+
+	if ((perms & CHERI_PERMS_HWALL_MEMORY) != 0) {
+		if (vm_cheri_revoke_test_range(start, end, cut))
+			return (1);
+		return (vm_cheri_revoke_test_capid(crshadow, cut, perms,
+		    start, end));
+	}
+
+	return (0);
+}
+#endif
+
 void
 vm_cheri_revoke_set_test(vm_map_t map, int flags)
 {
@@ -208,6 +309,23 @@ vm_cheri_revoke_set_test(vm_map_t map, int flags)
 
 		map->vm_cheri_revoke_test = vm_cheri_revoke_test_just_mem;
 		break;
+
+#ifdef CHERI_CAPREVOKE_CAPID
+	case VM_CHERI_REVOKE_CF_CAPID |
+	    VM_CHERI_REVOKE_CF_NO_COARSE_MEM |
+	    VM_CHERI_REVOKE_CF_NO_OTYPES |
+	    VM_CHERI_REVOKE_CF_NO_CIDS:
+		map->vm_cheri_revoke_test = vm_cheri_revoke_test_capid;
+		break;
+
+	case VM_CHERI_REVOKE_CF_CAPID |
+	    VM_CHERI_REVOKE_CF_NO_COARSE_MEM |
+	    VM_CHERI_REVOKE_CF_NO_OTYPES |
+	    VM_CHERI_REVOKE_CF_NO_CIDS |
+	    VM_CHERI_REVOKE_CF_NO_REV_ENTRY:
+		map->vm_cheri_revoke_test = vm_cheri_revoke_test_capid_just_mem;
+		break;
+#endif
 
 	default:
 		panic("Bad cheri_revoke cookie flags 0x%x\n", flags);

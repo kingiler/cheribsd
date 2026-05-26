@@ -520,6 +520,9 @@ fast_out:
 			    VM_CHERI_REVOKE_CF_NO_COARSE_MEM |
 			    VM_CHERI_REVOKE_CF_NO_OTYPES |
 			    VM_CHERI_REVOKE_CF_NO_CIDS;
+#ifdef CHERI_CAPREVOKE_CAPID
+			test_flags |= VM_CHERI_REVOKE_CF_CAPID;
+#endif
 
 			if (!vm_map_entry_start_revocation(vmm, NULL))
 				test_flags |= VM_CHERI_REVOKE_CF_NO_REV_ENTRY;

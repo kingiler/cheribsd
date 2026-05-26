@@ -330,4 +330,9 @@ int	cheri_revoke_get_shadow(int flags, void * __capability arena,
     void * __capability * shadow);
 #endif
 
+/*
+ * When using CapID revocation, this is the ID marking quarantined allocations.
+ */
+#define	CAPID_QUARANTINED	255
+
 #endif /* !__SYS_CHERI_REVOKE_H__ */
