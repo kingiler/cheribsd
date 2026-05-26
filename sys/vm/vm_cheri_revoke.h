@@ -35,6 +35,10 @@
 #define	_VM_CHERI_REVOKE_
 #ifdef CHERI_CAPREVOKE
 
+#ifdef CHERI_CAPREVOKE_CAPID
+#include <sys/counter.h>
+#endif
+
 /**************************** FORWARD DECLARATIONS ***************************/
 
 struct cheri_revoke_epochs;
@@ -132,6 +136,11 @@ enum {
 
 	/* If no rev_entry selected in the vm_map */
 	VM_CHERI_REVOKE_CF_NO_REV_ENTRY = 0x08,
+
+#ifdef CHERI_CAPREVOKE_CAPID
+	/* Enable capid-based revocation */
+	VM_CHERI_REVOKE_CF_CAPID = 0x10,
+#endif
 };
 void vm_cheri_revoke_set_test(struct vm_map *map, int flags);
 
@@ -165,6 +174,13 @@ enum vm_cheri_revoke_fault_res vm_cheri_revoke_fault_visit(
 #define CHERI_REVOKE_STATS_INC(st, ctr, d) do { } while (0)
 #endif
 #define CHERI_REVOKE_STATS_BUMP(st, ctr) CHERI_REVOKE_STATS_INC(st, ctr, 1)
+
+#ifdef CHERI_CAPREVOKE_CAPID
+extern counter_u64_t cheri_capid_recursive_scan;
+extern counter_u64_t cheri_capid_probe_fail;
+extern counter_u64_t cheri_capid_probe;
+extern uint64_t cheri_capid_max_recursive_scan_depth;
+#endif
 
 #endif /* CHERI_CAPREVOKE */
 #endif /* !_VM_CHERI_REVOKE_ */

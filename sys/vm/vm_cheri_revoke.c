@@ -99,6 +99,29 @@ SYSCTL_COUNTER_U64(_vm_stats_cheri_revoke, OID_AUTO, last_ref_early_finish, CTLF
     &cheri_last_ref_early_finish,
     "Scans finished early because the target exited");
 
+#ifdef CHERI_CAPREVOKE_CAPID
+COUNTER_U64_DEFINE_EARLY(cheri_capid_recursive_scan);
+SYSCTL_COUNTER_U64(_vm_stats_cheri_revoke, OID_AUTO, capid_recurisive_scan,
+    CTLFLAG_RD, &cheri_capid_recursive_scan,
+    "Number of recursive revoker page visits due to capid probes");
+
+COUNTER_U64_DEFINE_EARLY(cheri_capid_probe_count);
+SYSCTL_COUNTER_U64(_vm_stats_cheri_revoke, OID_AUTO, capid_probe,
+    CTLFLAG_RD, &cheri_capid_probe_count,
+    "Number of fuecapid probes");
+
+COUNTER_U64_DEFINE_EARLY(cheri_capid_probe_fail);
+SYSCTL_COUNTER_U64(_vm_stats_cheri_revoke, OID_AUTO, capid_probe_fail,
+    CTLFLAG_RD, &cheri_capid_probe_fail,
+    "Number of fuecapid probe failures");
+
+/* Atomically updated */
+uint64_t cheri_capid_max_recursive_scan_depth = 0;
+SYSCTL_U64(_vm_stats_cheri_revoke, OID_AUTO, capid_max_recurisive_scan_depth,
+    CTLFLAG_RD, &cheri_capid_max_recursive_scan_depth, 0,
+    "Maximum recursion depth of capid probe page visits");
+#endif
+
 /***************************** KERNEL THREADS ***************************/
 
 static MALLOC_DEFINE(M_REVOKE, "cheri_revoke", "cheri_revoke temporary data");

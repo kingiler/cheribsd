@@ -70,6 +70,9 @@
 #include <machine/frame.h>
 #include <machine/pcb.h>
 #include <machine/pcpu.h>
+#ifdef CHERI_CAPREVOKE_CAPID
+#include <machine/atomic.h>
+#endif
 
 #include <machine/resource.h>
 
@@ -340,6 +343,7 @@ page_fault_handler(struct trapframe *frame, int usermode)
 	vm_offset_t va;
 	struct proc *p;
 	int error, sig, ucode;
+	int fault_flags = 0;
 #ifdef KDB
 	bool handled;
 #endif
@@ -426,7 +430,27 @@ skip_pmap:
 	    "Kernel page fault") != 0)
 		goto fatal;
 
-	error = vm_fault_trap(map, va, ftype, VM_FAULT_NORMAL, &sig, &ucode);
+#ifdef CHERI_CAPREVOKE_CAPID
+	/*
+	 * XXX-AM: when taking a fault as part of a capid probe, we should
+	 * ensure that the fault does not trigger a recursive revocation visit.
+	 * For now, we just monitor this phenomenon.
+	 */
+	if (pcb->pcb_capid_probe_depth != 0) {
+		KASSERT((ftype & VM_PROT_CAP) == 0,
+		    ("Unexpected CapID probe fault %x", ftype));
+		uint64_t max_depth = atomic_load_64(
+		    &cheri_capid_max_recursive_scan_depth);
+		while (pcb->pcb_capid_probe_depth > max_depth &&
+		    !atomic_fcmpset_64(&cheri_capid_max_recursive_scan_depth,
+			&max_depth, pcb->pcb_capid_probe_depth))
+			continue; /* retry */
+		fault_flags |= VM_FAULT_CAPID_PROBE;
+	}
+#endif
+
+	error = vm_fault_trap(map, va, ftype, fault_flags | VM_FAULT_NORMAL,
+	    &sig, &ucode);
 	if (error != KERN_SUCCESS) {
 		if (usermode) {
 			call_trapsignal(td, sig, ucode, stval,

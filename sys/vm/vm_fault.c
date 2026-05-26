@@ -2036,6 +2036,10 @@ found:
 					("vm_fault cheri revoke CoW bad res"));
 			}
 		}
+#ifdef CHERI_CAPREVOKE_CAPID
+		if (fault_flags & VM_FAULT_CAPID_PROBE)
+			counter_u64_add(cheri_capid_recursive_scan, 1);
+#endif
 	} else {
 #ifdef INVARIANTS
 		vm_page_astate_t mas = vm_page_astate_load(fs.m);
