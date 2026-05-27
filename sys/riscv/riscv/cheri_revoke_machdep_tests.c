@@ -201,6 +201,10 @@ vm_cheri_revoke_test_capid(const uint8_t * __capability crshadow __unused,
 	int capid;
 	int err;
 
+	if (__builtin_expect(perms & CHERI_PERM_SW_VMEM, 0)) {
+		return (0);
+	}
+
 	/*
 	 * We must tolerate page faults during the CapID probe.
 	 * These are user page faults coming from kernel space.
@@ -237,9 +241,10 @@ vm_cheri_revoke_test_capid(const uint8_t * __capability crshadow __unused,
 		    cheri_capid_loc_get(cut));
 		err = fuecapid(priv_cut, &capid);
 
-		counter_u64_add(cheri_capid_probe, 1);
+		counter_u64_add(cheri_capid_probe_count, 1);
 		if (err != KERN_SUCCESS)
 			counter_u64_add(cheri_capid_probe_fail, 1);
+
 		/*
 		 * The capid probe has an interesting failure mode when the
 		 * underlying memory is not backed (e.g. stack guard pages).
@@ -253,11 +258,8 @@ vm_cheri_revoke_test_capid(const uint8_t * __capability crshadow __unused,
 		return (err != KERN_SUCCESS || capid == CAPID_QUARANTINED);
 	}
 
+	counter_u64_add(cheri_capid_fallback, 1);
 	if (vm_cheri_revoke_test_mem_nomap(crshadow, cut)) {
-		if (__builtin_expect(perms & CHERI_PERM_SW_VMEM, 0)) {
-			return (0);
-		}
-
 		return ((perms & CHERI_PERMS_HWALL_MEMORY) != 0);
 	}
 

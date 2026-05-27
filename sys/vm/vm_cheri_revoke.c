@@ -115,6 +115,11 @@ SYSCTL_COUNTER_U64(_vm_stats_cheri_revoke, OID_AUTO, capid_probe_fail,
     CTLFLAG_RD, &cheri_capid_probe_fail,
     "Number of fuecapid probe failures");
 
+COUNTER_U64_DEFINE_EARLY(cheri_capid_fallback);
+SYSCTL_COUNTER_U64(_vm_stats_cheri_revoke, OID_AUTO, capid_shadow_fallback,
+    CTLFLAG_RD, &cheri_capid_fallback,
+    "Number of capabilities without capid falling back to the shadow bitmap");
+
 /* Atomically updated */
 uint64_t cheri_capid_max_recursive_scan_depth = 0;
 SYSCTL_U64(_vm_stats_cheri_revoke, OID_AUTO, capid_max_recurisive_scan_depth,

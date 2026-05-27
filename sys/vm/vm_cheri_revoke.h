@@ -178,7 +178,8 @@ enum vm_cheri_revoke_fault_res vm_cheri_revoke_fault_visit(
 #ifdef CHERI_CAPREVOKE_CAPID
 extern counter_u64_t cheri_capid_recursive_scan;
 extern counter_u64_t cheri_capid_probe_fail;
-extern counter_u64_t cheri_capid_probe;
+extern counter_u64_t cheri_capid_probe_count;
+extern counter_u64_t cheri_capid_fallback;
 extern uint64_t cheri_capid_max_recursive_scan_depth;
 #endif
 
