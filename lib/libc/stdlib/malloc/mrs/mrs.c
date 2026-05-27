@@ -733,6 +733,28 @@ validate_freed_pointer(void *ptr)
 	}
 	/*mrs_debug_printf("freed underlying allocation %#p\n", underlying_allocation);*/
 
+	if (mteing && cgetmte(ptr) != 0) {
+		/*
+		 * If we reach here we are quarantining the allocation.
+		 * Mark it with the appropriate CapID.
+		 */
+		csettloc(underlying_allocation, cgettloc(ptr));
+		assert(cgetmte(underlying_allocation) == 0 &&
+		    "Unexpected re-derived CapID");
+#ifndef MTE_FPGA
+		csettmode(underlying_allocation, cheri_capid_mode_get(ptr));
+		csetmemmte(underlying_allocation, 255);
+#else
+		long cache_loc = ((ptraddr_t) ptr) & 0x7F;
+		volatile char *tag_loc =
+		    REAL(malloc_underlying_allocation)(ptr) -
+			cache_loc + cgettloc(ptr) * 4 - 1;
+		*tag_loc = 255;
+#endif
+
+		return (underlying_allocation);
+	}
+
 	/*
 	 * Here we use the bitmap to synchronize and make sure that
 	 * our guarantee is upheld in multithreaded environments.  We
@@ -1033,9 +1055,21 @@ quarantine_flush(struct mrs_quarantine *quarantine)
 			size_t len = __builtin_align_up(
 			    cheri_getlen(iter->slab[i].ptr),
 			    CAPREVOKE_BITMAP_ALIGNMENT);
-			caprev_shadow_nomap_clear_len(
-			    cri->base_mem_nomap, entire_shadow,
-			    cheri_getbase(iter->slab[i].ptr), len);
+			/*
+			 * XXX-AM: This abuses the property that tloc is never
+			 * 0 when the allocation is assigned a CapID.
+			 * This is used to disambiguate between allocations
+			 * that have a CapID and those that don't.
+			 * In the former case, we skip quarantine painting
+			 * and instead reset the CapID in memory to 0.
+			 */
+			if (mteing && cgettloc(iter->slab[i].ptr) != 0) {
+				csetmemmte(iter->slab[i].ptr, 0);
+			} else {
+				caprev_shadow_nomap_clear_len(
+				    cri->base_mem_nomap, entire_shadow,
+				    cheri_getbase(iter->slab[i].ptr), len);
+			}
 
 			/*
 			 * Don't construct a pointer to a
@@ -1994,37 +2028,33 @@ mrs_free(void *ptr)
 
 	if (ptr == NULL)
 		return;
-	
-	if(mteing){
 
-
-
-		if(cgetmte(ptr) !=0 && cheri_gettag(ptr)){
+	if (mteing) {
+		if (cgetmte(ptr) != 0 && cheri_gettag(ptr)) {
 #ifdef DOUBLE_FREE
-			if(cgetmemmte(ptr) > cgetmte(ptr)){
+			if (cgetmemmte(ptr) > cgetmte(ptr)) {
 				fprintf(stderr, "double free detected\n");
 				abort();
 			}
-#endif 
-			//long cache_loc = ((long long) ptr) &0xFF;
-			//*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*16 -1  )) = cgetmte(ptr) +1; 
-			if(cgetmte(ptr) < 255){
+#endif
+			 /* long cache_loc = ((long long) ptr) &0xFF; */
+			 /* volatile char *tag_loc = */
+			 /*    REAL(malloc_underlying_allocation)(ptr) - */
+			 /*    cache_loc + cgettloc(ptr) * 16 - 1; */
+			 /* *tag_loc = cgetmte(ptr) + 1; */
+
+			if (cgetmte(ptr) < 254) {
 #ifndef MTE_FPGA
-				csetmemmte(ptr,cgetmte(ptr) +1 );
-#else 
-				long cache_loc = ((long long) ptr) &0x7F;
-				*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*4 -1  )) = cgetmte(ptr) +1; 
-#endif 
+				csetmemmte(ptr, cgetmte(ptr) + 1);
+#else
+				long cache_loc = ((ptraddr_t) ptr) & 0x7F;
+				volatile char *tag_loc =
+				    REAL(malloc_underlying_allocation)(ptr) -
+					cache_loc + cgettloc(ptr) * 4 - 1;
+				*tag_loc = cgetmte(ptr) + 1l
+#endif
 				allocated_size -= cheri_getlen(ptr);
 				return REAL(free)(ptr);
-			}else{
-#ifndef MTE_FPGA
-				csetmemmte(ptr, 0 );
-#else 
-				long cache_loc = ((long long) ptr) &0x7F;
-				*((volatile char*) (REAL(malloc_underlying_allocation)(ptr) - cache_loc + cgettloc(ptr)*4 -1  )) = 0; 
-
-#endif 
 			}
 		}
 	}
