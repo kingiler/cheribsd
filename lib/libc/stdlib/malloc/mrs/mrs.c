@@ -96,7 +96,7 @@
  * of the heap (default 1/4).
  */
 
-//#define MTE_FPGA 1
+#define MTE_FPGA 1
 //#define DOUBLE_FREE 1
 
 #ifdef QUARANTINE_RATIO
@@ -745,11 +745,7 @@ validate_freed_pointer(void *ptr)
 		csettmode(underlying_allocation, cheri_capid_mode_get(ptr));
 		csetmemmte(underlying_allocation, 255);
 #else
-		long cache_loc = ((ptraddr_t) ptr) & 0x7F;
-		volatile char *tag_loc =
-		    REAL(malloc_underlying_allocation)(ptr) -
-			cache_loc + cgettloc(ptr) * 4 - 1;
-		*tag_loc = 255;
+		csetmemmte(underlying_allocation, 255);
 #endif
 
 		return (underlying_allocation);
@@ -1621,8 +1617,8 @@ mrs_malloc(size_t size)
 		padded_size = 16;
 	}
 	else{
-#ifndef MTE_FPGA
 		if(mteing){
+#ifndef MTE_FPGA
 			if(size < 128){
 				padded_size = (size/16+1) * 16;
 
@@ -1665,7 +1661,8 @@ mrs_malloc(size_t size)
 			}
 #else 
 			if(size < 64){
-				padded_size = (size/16+1) * 16;
+				if(size < 32 ) padded_size = (size/16+1) * 16;
+				else padded_size = 64;
 
 			}
 #endif 
@@ -1731,9 +1728,8 @@ mrs_malloc(size_t size)
 #ifndef MTE_FPGA
 				csetmemmte(allocated_region, 0x1);
 #else 	
-				cache_loc = ((long long) allocated_region) &0x7F;
-				tloc = (padded_size + cache_loc)/4  ;
-				*((volatile char*) (allocated_region - cache_loc + tloc*4 -1  ))  = 0x1; 
+				csetmemmte(allocated_region, 0x1);
+
 #endif 
 				csetmte(allocated_region, 0x1);
 			}else{
@@ -2047,11 +2043,7 @@ mrs_free(void *ptr)
 #ifndef MTE_FPGA
 				csetmemmte(ptr, cgetmte(ptr) + 1);
 #else
-				long cache_loc = ((ptraddr_t) ptr) & 0x7F;
-				volatile char *tag_loc =
-				    REAL(malloc_underlying_allocation)(ptr) -
-					cache_loc + cgettloc(ptr) * 4 - 1;
-				*tag_loc = cgetmte(ptr) + 1l
+				csetmemmte(ptr, cgetmte(ptr) + 1);
 #endif
 				allocated_size -= cheri_getlen(ptr);
 				return REAL(free)(ptr);
