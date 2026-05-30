@@ -1271,7 +1271,30 @@ arena_slab_alloc(tsdn_t *tsdn, arena_t *arena, szind_t binind, unsigned binshard
 	arena_slab_data_t *slab_data = extent_slab_data_get(slab);
 	extent_nfree_binshard_set(slab, bin_info->nregs, binshard);
 	bitmap_init(slab_data->bitmap, &bin_info->bitmap_info, false);
+#define CHERI_PAGE_META_SIZE 64
+	if (bin_info->reg_size >= 64 &&
+	    bin_info->reg_size < PAGE_SIZE) {
 
+	    size_t nregs = bin_info->nregs;
+
+	    for (size_t regind = 0; regind < nregs; regind++) {
+
+	        size_t offset = regind * bin_info->reg_size;
+	        size_t page_off = offset & (PAGE_SIZE - 1);
+
+	        if (page_off + bin_info->reg_size >
+	            PAGE_SIZE - CHERI_PAGE_META_SIZE) {
+
+	            bitmap_set(slab_data->bitmap,
+	                        &bin_info->bitmap_info,
+	                        regind);
+
+	            extent_nfree_binshard_set(slab,
+	                extent_nfree_get(slab) - 1,
+	                binshard);
+	        }
+	    }
+	}
 	arena_nactive_add(arena, extent_size_get(slab) >> LG_PAGE);
 
 	return slab;
