@@ -96,7 +96,7 @@
  * of the heap (default 1/4).
  */
 
-#define MTE_FPGA 1
+//#define MTE_FPGA 1
 //#define DOUBLE_FREE 1
 
 #ifdef QUARANTINE_RATIO
@@ -1619,46 +1619,63 @@ mrs_malloc(size_t size)
 	else{
 		if(mteing){
 #ifndef MTE_FPGA
-			if(size < 128){
+			if(size < 64){
 				padded_size = (size/16+1) * 16;
 
 			}
-			else if(size < 512){
-				if (size < 256) padded_size = (size/32+1) * 32;
-				else  padded_size = (size/64+1) * 64;
-				tmode = 1;
+			else if (size <= 128) {
+			    padded_size = (size + 16 - 1) & ~(16 - 1);
+				tmode = 1 ;
 			}
-			else if (size < 2048){
-				if (size < 1024) padded_size = (size/128 + 1) * 128;
-				else padded_size = (size/256 + 1) * 256;
-				tmode = 2;
+			else if (size <= 512) {
+			    padded_size = (size + 32 - 1) & ~(32 - 1);
+				tmode = 1 ;
 			}
-			else if(size < 4096*4){
-				if (size < 4096) padded_size = (size/512 + 1) * 512;
-				else if (size < 4096*2) padded_size = (size/1024 + 1) * 1024;
-				else padded_size = (size/2048 + 1) * 2048;
-				tmode = 3;
+			else if (size <= 2048) {
+			    padded_size = (size + 128 - 1) & ~(128 - 1);
+				tmode = 1 ;
 			}
-			else if(size < 4096*16){
-				if (size < (4096*8)) padded_size = (size/4096 + 1) * 4096;
-				else padded_size = (size/(4096*2) + 1) * (4096*2);
-				tmode = 4;
+			else if (size <= 3584){
+			    padded_size = (size + 512 - 1) & ~(512 - 1);
+				tmode = 1 ;
 			}
-			else if(size < 4096*64){
-				if(size < 4096*32) padded_size = (size/(4096*4) + 1) * (4096*4);
-				else padded_size = (size/(4096*8) + 1) * (4096*8);
-				tmode = 5;
-			}
-			else if(size < 4096*256){
-				if(size < 4096*128) padded_size = (size/(4096 * 16) + 1) * (4096 * 16);
-				else padded_size = (size/(4096 * 32) + 1) *(4096 * 32);
-				tmode = 6;
-			}
-			else if(size < 4096*1024){
-				if(size < 4096*512) padded_size = (size/(4096 * 64) + 1) * (4096 * 64);
-				else padded_size = (size/(4096 * 128) + 1) *(4096 * 128);
-				tmode = 7;
-			}
+
+			//else if(size < 512){
+			//	if (size < 256) padded_size = (size/32+1) * 32;
+			//	else  padded_size = (size/64+1) * 64;
+			//	tmode = 1;
+			//}
+			//else if (size < 2048){
+			//	if (size < 1024) padded_size = (size/128 + 1) * 128;
+			//	else padded_size = (size/256 + 1) * 256;
+			//	tmode = 2;
+			//}
+			//else if(size < 4096*4){
+			//	if (size < 4096) padded_size = (size/512 + 1) * 512;
+			//	else if (size < 4096*2) padded_size = (size/1024 + 1) * 1024;
+			//	else padded_size = (size/2048 + 1) * 2048;
+			//	tmode = 3;
+			//}
+			//else if(size < 4096*16){
+			//	if (size < (4096*8)) padded_size = (size/4096 + 1) * 4096;
+			//	else padded_size = (size/(4096*2) + 1) * (4096*2);
+			//	tmode = 4;
+			//}
+			//else if(size < 4096*64){
+			//	if(size < 4096*32) padded_size = (size/(4096*4) + 1) * (4096*4);
+			//	else padded_size = (size/(4096*8) + 1) * (4096*8);
+			//	tmode = 5;
+			//}
+			//else if(size < 4096*256){
+			//	if(size < 4096*128) padded_size = (size/(4096 * 16) + 1) * (4096 * 16);
+			//	else padded_size = (size/(4096 * 32) + 1) *(4096 * 32);
+			//	tmode = 6;
+			//}
+			//else if(size < 4096*1024){
+			//	if(size < 4096*512) padded_size = (size/(4096 * 64) + 1) * (4096 * 64);
+			//	else padded_size = (size/(4096 * 128) + 1) *(4096 * 128);
+			//	tmode = 7;
+			//}
 #else 
 			if(size < 64){
 				if(size < 32 ) padded_size = (size/16+1) * 16;
@@ -1682,39 +1699,41 @@ mrs_malloc(size_t size)
 	}
 	if(mteing && padded){
 		long cache_loc = 0;
-		
+		long long id_offset = 0;
 		if(tmode == 0){
 			cache_loc = ((long long) allocated_region) &0x7F;
 			tloc = (padded_size + cache_loc)/4  ;
 		}
 		else if(tmode == 1){
-			cache_loc = ((long long) allocated_region) &0x1FF;
-			tloc = (padded_size + cache_loc)/16 ;
+			//cache_loc = ((long long) allocated_region) &0x1FF;
+			//tloc = (padded_size + cache_loc)/16 ;
+			id_offset = ((long long) allocated_region) &0xFFF;
+			tloc = id_offset/(4096/64);
 		}
-		else if (tmode ==2){
-			cache_loc = ((long long) allocated_region) &0xFFF;
-			tloc = (padded_size + cache_loc)/128 ;
-		}
-		else if (tmode ==3){
-			cache_loc = ((long long) allocated_region) &0x3FFF;
-			tloc = (padded_size + cache_loc)/512 ;
-		}	
-		else if (tmode ==4){
-			cache_loc = ((long long) allocated_region) &0x3FFFF;
-			tloc = (padded_size + cache_loc)/4096 ;
-		}	
-		else if (tmode == 5){
-			cache_loc = ((long long) allocated_region) &0xfff;
-			tloc = (padded_size + cache_loc)/(4096*4) ;
-		}	
-		else if (tmode == 6){
-			cache_loc = ((long long) allocated_region) &0xFFF;
-			tloc = (padded_size + cache_loc)/(4096*16) ;
-		}	
-		else if (tmode == 7){
-			cache_loc = ((long long) allocated_region) &0xFFF;
-			tloc = (padded_size + cache_loc)/(4096*64) ;
-		}
+		//else if (tmode ==2){
+		//	cache_loc = ((long long) allocated_region) &0xFFF;
+		//	tloc = (padded_size + cache_loc)/128 ;
+		//}
+		//else if (tmode ==3){
+		//	cache_loc = ((long long) allocated_region) &0x3FFF;
+		//	tloc = (padded_size + cache_loc)/512 ;
+		//}	
+		//else if (tmode ==4){
+		//	cache_loc = ((long long) allocated_region) &0x3FFFF;
+		//	tloc = (padded_size + cache_loc)/4096 ;
+		//}	
+		//else if (tmode == 5){
+		//	cache_loc = ((long long) allocated_region) &0xfff;
+		//	tloc = (padded_size + cache_loc)/(4096*4) ;
+		//}	
+		//else if (tmode == 6){
+		//	cache_loc = ((long long) allocated_region) &0xFFF;
+		//	tloc = (padded_size + cache_loc)/(4096*16) ;
+		//}	
+		//else if (tmode == 7){
+		//	cache_loc = ((long long) allocated_region) &0xFFF;
+		//	tloc = (padded_size + cache_loc)/(4096*64) ;
+		//}
 		char mem_mte = 0;
 #ifndef MTE_FPGA
 		csettmode(allocated_region, tmode);
@@ -1722,22 +1741,22 @@ mrs_malloc(size_t size)
 		csettloc(allocated_region, tloc);
 		mem_mte =  cgetmemmte(allocated_region);//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ));
 		
-		if(tloc != 0){
-			if(mem_mte == 0){
+		//if(tloc != 0){
+		if(mem_mte == 0){
 				//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ))  = 0x1; 
 #ifndef MTE_FPGA
-				csetmemmte(allocated_region, 0x1);
+			csetmemmte(allocated_region, 0x1);
 #else 	
-				csetmemmte(allocated_region, 0x1);
+			csetmemmte(allocated_region, 0x1);
 
 #endif 
-				csetmte(allocated_region, 0x1);
-			}else{
-				csetmte(allocated_region, mem_mte);
-			}
-		}else {
-			csetmte(allocated_region, 0);
+			csetmte(allocated_region, 0x1);
+		}else{
+			csetmte(allocated_region, mem_mte);
 		}
+		//}else {
+		//	csetmte(allocated_region, 0);
+		//}
 		allocated_region = __builtin_cheri_bounds_set(allocated_region, size);	
 	}else{
 		csetmte(allocated_region, 0);
