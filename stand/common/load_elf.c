@@ -663,7 +663,7 @@ __elfN(loadimage)(struct preloaded_file *fp, elf_file_t ef, uint64_t off)
 		__elfN(relocation_offset) = off;
 
 #ifdef EFI
-	if (ehdr->e_phoff + ef->phdrslen > PAGE_SIZE) {
+	if (ef->kernel && ehdr->e_phoff + ef->phdrslen > PAGE_SIZE) {
 		/*
 		 * In case program headers reside on multiple pages, the static
 		 * linker with a linker script for the kernel will not emit a
