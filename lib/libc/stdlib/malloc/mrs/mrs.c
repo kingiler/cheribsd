@@ -1059,7 +1059,7 @@ quarantine_flush(struct mrs_quarantine *quarantine)
 			 * In the former case, we skip quarantine painting
 			 * and instead reset the CapID in memory to 0.
 			 */
-			if (mteing && cgettloc(iter->slab[i].ptr) != 0) {
+			if (mteing && (cgettloc(iter->slab[i].ptr) != 0 ||  cheri_capid_mode_get(iter->slab[i].ptr) !=0 )) {
 				csetmemmte(iter->slab[i].ptr, 0);
 			} else {
 				caprev_shadow_nomap_clear_len(
