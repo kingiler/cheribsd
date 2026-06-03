@@ -319,7 +319,7 @@ static size_t page_size;
 /* Flags are constant after initialization. */
 static void *entire_shadow;
 static bool quarantining = true;
-static bool mteing = true;
+static bool mteing = false;
 static bool revoke_every_free = false;
 static bool revoke_async = false;
 static bool bound_pointers = false;
@@ -386,6 +386,9 @@ static inline int cgetmemmte(void * a){
 
 static void csetmemmte(void  * a, int ver){
     asm volatile("csetmemmte %0, %1, %2": :"C"(a), "C"(a), "r"(ver));
+	asm volatile("fence" ::: "memory");
+	asm volatile("fence rw,rw" ::: "memory");
+	asm volatile("fence.i" ::: "memory");
 }
 
 
@@ -733,7 +736,7 @@ validate_freed_pointer(void *ptr)
 	}
 	/*mrs_debug_printf("freed underlying allocation %#p\n", underlying_allocation);*/
 
-	if (mteing && cgetmte(ptr) != 0) {
+	if (mteing && cgetmte(ptr) == 254) {
 		/*
 		 * If we reach here we are quarantining the allocation.
 		 * Mark it with the appropriate CapID.
@@ -747,7 +750,7 @@ validate_freed_pointer(void *ptr)
 #else
 		csetmemmte(underlying_allocation, 255);
 #endif
-
+		//asm volatile("fence.i" ::: "memory");
 		return (underlying_allocation);
 	}
 
@@ -1061,12 +1064,13 @@ quarantine_flush(struct mrs_quarantine *quarantine)
 			 */
 			if (mteing && (cgettloc(iter->slab[i].ptr) != 0 ||  cheri_capid_mode_get(iter->slab[i].ptr) !=0 )) {
 				csetmemmte(iter->slab[i].ptr, 0);
+				
 			} else {
 				caprev_shadow_nomap_clear_len(
 				    cri->base_mem_nomap, entire_shadow,
 				    cheri_getbase(iter->slab[i].ptr), len);
 			}
-
+			//asm volatile("fence.i" ::: "memory");
 			/*
 			 * Don't construct a pointer to a
 			 * previously revoked region until the
@@ -1620,7 +1624,8 @@ mrs_malloc(size_t size)
 		if(mteing){
 #ifndef MTE_FPGA
 			if(size < 64){
-				padded_size = (size/16+1) * 16;
+				if(size < 32 ) padded_size = (size/16+1) * 16;
+				else padded_size = 64;
 
 			}
 			else if (size <= 128) {
@@ -1635,7 +1640,7 @@ mrs_malloc(size_t size)
 			    padded_size = (size + 128 - 1) & ~(128 - 1);
 				tmode = 1 ;
 			}
-			else if (size <= 3584){
+			else if (size <= 4032){
 			    padded_size = (size + 512 - 1) & ~(512 - 1);
 				tmode = 1 ;
 			}
@@ -1750,6 +1755,7 @@ mrs_malloc(size_t size)
 			csetmemmte(allocated_region, 0x1);
 
 #endif 
+			//asm volatile("fence.i" ::: "memory");
 			csetmte(allocated_region, 0x1);
 		}else{
 			csetmte(allocated_region, mem_mte);
@@ -2064,6 +2070,7 @@ mrs_free(void *ptr)
 #else
 				csetmemmte(ptr, cgetmte(ptr) + 1);
 #endif
+				//asm volatile("fence.i" ::: "memory");
 				allocated_size -= cheri_getlen(ptr);
 				return REAL(free)(ptr);
 			}
