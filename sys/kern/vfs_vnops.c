@@ -2990,6 +2990,9 @@ vn_mmap(struct file *fp, vm_map_t map, vm_pointer_t *addr,
 		cap_maxprot = VM_PROT_ADD_CAP(cap_maxprot);
 	}
 	maxprot &= cap_maxprot;
+	if ((prot & maxprot) != prot) {
+		return (EINVAL);
+	}
 
 	/*
 	 * For regular files and shared memory, POSIX requires that
