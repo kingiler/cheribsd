@@ -319,7 +319,7 @@ static size_t page_size;
 /* Flags are constant after initialization. */
 static void *entire_shadow;
 static bool quarantining = true;
-static bool mteing = false;
+static bool mteing = true;
 static bool revoke_every_free = false;
 static bool revoke_async = false;
 static bool bound_pointers = false;
@@ -387,8 +387,14 @@ static inline int cgetmemmte(void * a){
 static void csetmemmte(void  * a, int ver){
     asm volatile("csetmemmte %0, %1, %2": :"C"(a), "C"(a), "r"(ver));
 	asm volatile("fence" ::: "memory");
-	asm volatile("fence rw,rw" ::: "memory");
+	//asm volatile("fence rw,rw" ::: "memory");
 	asm volatile("fence.i" ::: "memory");
+}
+
+static void csetmemmte_nofence(void  * a, int ver){
+    asm volatile("csetmemmte %0, %1, %2": :"C"(a), "C"(a), "r"(ver));
+	//asm volatile("fence rw,rw" ::: "memory");
+	//asm volatile("fence.i" ::: "memory");
 }
 
 
@@ -746,10 +752,15 @@ validate_freed_pointer(void *ptr)
 		    "Unexpected re-derived CapID");
 #ifndef MTE_FPGA
 		csettmode(underlying_allocation, cheri_capid_mode_get(ptr));
-		csetmemmte(underlying_allocation, 255);
+		if(cheri_capid_mode_get(ptr) == 0)
+			csetmemmte_nofence(underlying_allocation, 255);
+		else 
+			csetmemmte(underlying_allocation, 255);
 #else
 		csetmemmte(underlying_allocation, 255);
 #endif
+		//asm volatile("fence.i" ::: "memory");
+		//asm volatile("fence" ::: "memory");
 		//asm volatile("fence.i" ::: "memory");
 		return (underlying_allocation);
 	}
@@ -1062,14 +1073,20 @@ quarantine_flush(struct mrs_quarantine *quarantine)
 			 * In the former case, we skip quarantine painting
 			 * and instead reset the CapID in memory to 0.
 			 */
-			if (mteing && (cgettloc(iter->slab[i].ptr) != 0 ||  cheri_capid_mode_get(iter->slab[i].ptr) !=0 )) {
-				csetmemmte(iter->slab[i].ptr, 0);
+			int mode = cheri_capid_mode_get(iter->slab[i].ptr) ;
+			if (mteing && (cgettloc(iter->slab[i].ptr) != 0 ||  mode !=0 )) {
+				if(mode == 0)
+					csetmemmte_nofence(iter->slab[i].ptr, 0);
+				else
+					csetmemmte(iter->slab[i].ptr, 0);
 				
 			} else {
 				caprev_shadow_nomap_clear_len(
 				    cri->base_mem_nomap, entire_shadow,
 				    cheri_getbase(iter->slab[i].ptr), len);
 			}
+			//asm volatile("fence.i" ::: "memory");
+			//asm volatile("fence" ::: "memory");
 			//asm volatile("fence.i" ::: "memory");
 			/*
 			 * Don't construct a pointer to a
@@ -1750,12 +1767,14 @@ mrs_malloc(size_t size)
 		if(mem_mte == 0){
 				//*((volatile char*) (allocated_region - cache_loc + tloc*16 -1  ))  = 0x1; 
 #ifndef MTE_FPGA
-			csetmemmte(allocated_region, 0x1);
+			if(tmode == 0)	csetmemmte_nofence(allocated_region, 0x1);
+			else csetmemmte(allocated_region, 0x1);
 #else 	
 			csetmemmte(allocated_region, 0x1);
 
 #endif 
 			//asm volatile("fence.i" ::: "memory");
+			//asm volatile("fence" ::: "memory");
 			csetmte(allocated_region, 0x1);
 		}else{
 			csetmte(allocated_region, mem_mte);
@@ -2071,6 +2090,7 @@ mrs_free(void *ptr)
 				csetmemmte(ptr, cgetmte(ptr) + 1);
 #endif
 				//asm volatile("fence.i" ::: "memory");
+				//asm volatile("fence" ::: "memory");
 				allocated_size -= cheri_getlen(ptr);
 				return REAL(free)(ptr);
 			}
