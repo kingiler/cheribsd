@@ -1702,6 +1702,8 @@ link_elf_create_compartments(linker_file_t lf, struct thread *td)
 	for (compartmentii = 0; compartmentii < ef->ncompartments;
 	    compartmentii++) {
 		ec = &ef->compartments[compartmentii];
+		if (ec->name[0] != 'P')
+			continue;
 		if (compartment_create(td, ec->id, false) == NULL)
 			return (0);
 	}
